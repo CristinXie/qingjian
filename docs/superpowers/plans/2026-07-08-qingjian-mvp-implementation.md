@@ -14,7 +14,7 @@
 - Use .NET 8 as the concrete runtime choice for the MVP.
 - Use SQLite for local persistence.
 - Use EF Core SQLite for database access and migration-friendly structure.
-- Keep the first version as a single WPF project plus one test project.
+- Keep the first version as a single WPF project plus one Windows-targeted test project.
 - The app opens directly to the usable notes interface, not a landing page.
 - The MVP excludes global hotkeys, quick note popup, transparent desktop widget, tray mode, startup on boot, cloud sync, rich text, Markdown preview, tags, search, import, and export.
 - Store generated project files under `C:\Users\Cristin\Desktop\VibeCoding\qingjian` unless a later user instruction says otherwise.
@@ -78,7 +78,7 @@ File responsibilities:
 - `.gitignore`: keep build output, local DB files, IDE files, and temporary files out of Git.
 - `Directory.Build.props`: centralize nullable, implicit usings, and deterministic build settings.
 - `QingJian.App.csproj`: WPF app project and EF Core SQLite dependencies.
-- `QingJian.App.Tests.csproj`: xUnit test project referencing the app project.
+- `QingJian.App.Tests.csproj`: xUnit test project targeting `net8.0-windows` and referencing the app project.
 - `Models/Note.cs`: EF Core entity and property change notifications for UI binding.
 - `Data/AppDbContext.cs`: EF Core DbContext and `Notes` table configuration.
 - `Data/INoteRepository.cs`: persistence interface used by services.
@@ -192,7 +192,7 @@ Write `C:\Users\Cristin\Desktop\VibeCoding\qingjian\tests\QingJian.App.Tests\Qin
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
