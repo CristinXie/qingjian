@@ -4,6 +4,11 @@ QingJian is a native Windows sticky-notes app built with WPF, .NET 8, and SQLite
 
 ## MVP
 
+- Open directly to a notes interface.
+- Create, edit, and soft-delete notes.
+- Persist notes locally with SQLite.
+- Save note edits automatically.
+
 ## Markdown Editing
 
 - Note bodies are stored as Markdown text.
@@ -16,11 +21,6 @@ QingJian is a native Windows sticky-notes app built with WPF, .NET 8, and SQLite
 
 - Windows with the Microsoft Edge WebView2 Runtime installed.
 - .NET 8 SDK for development.
-
-- Open directly to a notes interface.
-- Create, edit, and soft-delete notes.
-- Persist notes locally with SQLite.
-- Save note edits automatically.
 
 ## Development
 
