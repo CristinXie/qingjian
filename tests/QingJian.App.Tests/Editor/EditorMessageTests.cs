@@ -42,6 +42,18 @@ public sealed class EditorMessageTests
         Assert.Equal(string.Empty, message.Markdown);
     }
 
+    [Fact]
+    public void TryParse_ReturnsExternalLinkRequestedMessage()
+    {
+        var parsed = EditorMessage.TryParse(
+            """{"type":"externalLinkRequested","url":"https://example.com"}""",
+            out var message);
+
+        Assert.True(parsed);
+        Assert.Equal("externalLinkRequested", message.Type);
+        Assert.Equal("https://example.com", message.Url);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -54,6 +66,8 @@ public sealed class EditorMessageTests
     [InlineData("""{"type":{} ,"markdown":"Body"}""")]
     [InlineData("""{"type":"markdownChanged","noteId":{} ,"markdown":"Body"}""")]
     [InlineData("""{"type":"markdownChanged","markdown":{}}""")]
+    [InlineData("""{"type":"externalLinkRequested","url":{}}""")]
+    [InlineData("""{"type":"externalLinkRequested","url":""}""")]
     public void TryParse_RejectsMalformedOrUnsupportedMessages(string? json)
     {
         var parsed = EditorMessage.TryParse(json, out var message);

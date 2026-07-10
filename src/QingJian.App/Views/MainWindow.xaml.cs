@@ -1,4 +1,5 @@
 using System.IO;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -22,6 +23,7 @@ public partial class MainWindow : Window
     private int _editorLoadVersion;
     private readonly SemaphoreSlim _editorLoadSemaphore = new(1, 1);
     private int _pendingEditorLoadVersion;
+    private Uri? _editorUri;
     private string? _pendingEditorNoteId;
     private string? _pendingEditorMarkdown;
 
@@ -131,10 +133,12 @@ public partial class MainWindow : Window
         {
             MarkdownWebView.WebMessageReceived += MarkdownWebView_OnWebMessageReceived;
             await MarkdownWebView.EnsureCoreWebView2Async();
+            MarkdownWebView.CoreWebView2.NavigationStarting += MarkdownWebView_OnNavigationStarting;
             MarkdownWebView.CoreWebView2.NavigationCompleted += MarkdownWebView_OnNavigationCompleted;
 
             var editorPath = Path.Combine(AppContext.BaseDirectory, "EditorAssets", "index.html");
-            MarkdownWebView.Source = new Uri(editorPath);
+            _editorUri = new Uri(editorPath);
+            MarkdownWebView.Source = _editorUri;
         }
         catch (Exception)
         {
@@ -218,12 +222,18 @@ public partial class MainWindow : Window
 
     private void MarkdownWebView_OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
-        if (_viewModel.SelectedNote is null)
+        if (!EditorMessage.TryParse(e.WebMessageAsJson, out var message))
         {
             return;
         }
 
-        if (!EditorMessage.TryParse(e.WebMessageAsJson, out var message))
+        if (message.Type == EditorMessage.ExternalLinkRequestedType)
+        {
+            OpenExternalLink(message.Url);
+            return;
+        }
+
+        if (_viewModel.SelectedNote is null)
         {
             return;
         }
@@ -234,6 +244,38 @@ public partial class MainWindow : Window
         }
 
         _viewModel.SelectedNote.Content = markdown;
+    }
+
+    private void MarkdownWebView_OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
+    {
+        if (_editorUri is not null &&
+            Uri.TryCreate(e.Uri, UriKind.Absolute, out var targetUri) &&
+            IsSameEditorPage(targetUri))
+        {
+            return;
+        }
+
+        e.Cancel = true;
+    }
+
+    private bool IsSameEditorPage(Uri targetUri)
+    {
+        return _editorUri is not null &&
+            string.Equals(targetUri.LocalPath, _editorUri.LocalPath, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void OpenExternalLink(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+            uri.Scheme is not ("http" or "https"))
+        {
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo(uri.AbsoluteUri)
+        {
+            UseShellExecute = true
+        });
     }
 
     private void TitleTextBox_OnGotKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
