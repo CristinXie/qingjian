@@ -189,7 +189,7 @@ public sealed class MainViewModelTests
 
         public Task<Note> CreateNoteAsync(CancellationToken cancellationToken = default)
         {
-            var note = CreateNote($"note-{_notes.Count + 1}", "未命名便签");
+            var note = CreateNote($"note-{_notes.Count + 1}", NoteService.DefaultTitle);
             _notes.Insert(0, note);
             return Task.FromResult(note);
         }

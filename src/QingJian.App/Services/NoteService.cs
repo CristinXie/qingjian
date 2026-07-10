@@ -5,7 +5,7 @@ namespace QingJian.App.Services;
 
 public sealed class NoteService : INoteService
 {
-    private const string DefaultTitle = "未命名便签";
+    public const string DefaultTitle = "未命名文件";
     private readonly INoteRepository _noteRepository;
     private readonly Func<DateTime> _utcNow;
 

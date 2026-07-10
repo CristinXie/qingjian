@@ -16,7 +16,7 @@ public sealed class NoteServiceTests
 
         var note = await service.CreateNoteAsync();
 
-        Assert.Equal("未命名便签", note.Title);
+        Assert.Equal("未命名文件", note.Title);
         Assert.Equal(string.Empty, note.Content);
         Assert.Equal(now, note.CreatedAt);
         Assert.Equal(now, note.UpdatedAt);
@@ -43,7 +43,7 @@ public sealed class NoteServiceTests
 
         await service.SaveNoteAsync(note);
 
-        Assert.Equal("未命名便签", note.Title);
+        Assert.Equal("未命名文件", note.Title);
         Assert.Equal(savedAt, note.UpdatedAt);
         Assert.Single(repository.UpdatedNotes);
     }

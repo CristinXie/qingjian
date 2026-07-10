@@ -72,12 +72,16 @@
                         DockPanel.Dock="Right" />
             </DockPanel>
 
-            <TextBox Grid.Row="1"
-                     Text="{Binding SelectedNote.Title, UpdateSourceTrigger=PropertyChanged}"
+            <TextBox x:Name="TitleTextBox"
+                     Grid.Row="1"
+                     Text="{Binding SelectedNote.Title, UpdateSourceTrigger=Explicit}"
                      FontSize="26"
                      FontWeight="SemiBold"
                      Margin="0,10,0,18"
-                     AcceptsReturn="False" />
+                     AcceptsReturn="False"
+                     GotKeyboardFocus="TitleTextBox_OnGotKeyboardFocus"
+                     LostKeyboardFocus="TitleTextBox_OnLostKeyboardFocus"
+                     TextChanged="TitleTextBox_OnTextChanged" />
 
             <TextBox Grid.Row="2"
                      Text="{Binding SelectedNote.Content, UpdateSourceTrigger=PropertyChanged}"
