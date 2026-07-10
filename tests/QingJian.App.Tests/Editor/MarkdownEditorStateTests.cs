@@ -23,7 +23,7 @@ public sealed class MarkdownEditorStateTests
         var state = new MarkdownEditorState();
         state.BeginLoad("note-1", "Original");
 
-        var applied = state.TryApplyEditorMarkdown("Echo", out var markdown);
+        var applied = state.TryApplyEditorMarkdown("note-1", "Echo", out var markdown);
 
         Assert.False(applied);
         Assert.Equal("Original", state.CurrentMarkdown);
@@ -37,7 +37,7 @@ public sealed class MarkdownEditorStateTests
         state.BeginLoad("note-1", "Original");
         state.EndLoad();
 
-        var applied = state.TryApplyEditorMarkdown("Changed", out var markdown);
+        var applied = state.TryApplyEditorMarkdown("note-1", "Changed", out var markdown);
 
         Assert.True(applied);
         Assert.Equal("Changed", markdown);
@@ -51,9 +51,37 @@ public sealed class MarkdownEditorStateTests
         state.BeginLoad("note-1", "Same");
         state.EndLoad();
 
-        var applied = state.TryApplyEditorMarkdown("Same", out var markdown);
+        var applied = state.TryApplyEditorMarkdown("note-1", "Same", out var markdown);
 
         Assert.False(applied);
         Assert.Equal("Same", markdown);
+    }
+
+    [Fact]
+    public void TryApplyEditorMarkdown_IgnoresChangeForStaleNoteId()
+    {
+        var state = new MarkdownEditorState();
+        state.BeginLoad("note-1", "Original");
+        state.EndLoad();
+
+        var applied = state.TryApplyEditorMarkdown("note-2", "Stale", out var markdown);
+
+        Assert.False(applied);
+        Assert.Equal("Original", markdown);
+        Assert.Equal("Original", state.CurrentMarkdown);
+    }
+
+    [Fact]
+    public void TryApplyEditorMarkdown_IgnoresChangeWithoutMatchingNoteId()
+    {
+        var state = new MarkdownEditorState();
+        state.BeginLoad("note-1", "Original");
+        state.EndLoad();
+
+        var applied = state.TryApplyEditorMarkdown(null, "Missing", out var markdown);
+
+        Assert.False(applied);
+        Assert.Equal("Original", markdown);
+        Assert.Equal("Original", state.CurrentMarkdown);
     }
 }

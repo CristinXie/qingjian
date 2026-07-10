@@ -17,6 +17,12 @@ public partial class MainWindow : Window
     private readonly MarkdownEditorState _editorState = new();
     private bool _isEditorReady;
     private bool _isUpdatingTitlePlaceholder;
+    private bool _isCloseSaveInProgress;
+    private bool _isClosingAfterSave;
+    private int _editorLoadVersion;
+    private readonly SemaphoreSlim _editorLoadSemaphore = new(1, 1);
+    private int _pendingEditorLoadVersion;
+    private string? _pendingEditorNoteId;
     private string? _pendingEditorMarkdown;
 
     public MainWindow(MainViewModel viewModel)
@@ -46,23 +52,76 @@ public partial class MainWindow : Window
 
     private async void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        await PullLatestEditorMarkdownAsync();
-        await _viewModel.SaveSelectedNoteNowAsync();
-    }
-
-    private async Task PullLatestEditorMarkdownAsync()
-    {
-        if (!_isEditorReady || MarkdownWebView.CoreWebView2 is null || _viewModel.SelectedNote is null)
+        if (_isClosingAfterSave)
         {
             return;
         }
 
-        var result = await MarkdownWebView.ExecuteScriptAsync("window.qingjianEditor.getMarkdown();");
-        var markdown = JsonSerializer.Deserialize<string>(result) ?? string.Empty;
+        e.Cancel = true;
 
-        if (_editorState.TryApplyEditorMarkdown(markdown, out var normalizedMarkdown))
+        if (_isCloseSaveInProgress)
         {
-            _viewModel.SelectedNote.Content = normalizedMarkdown;
+            return;
+        }
+
+        _isCloseSaveInProgress = true;
+
+        try
+        {
+            await PullLatestEditorMarkdownAsync();
+            await _viewModel.SaveSelectedNoteNowAsync();
+
+            _isClosingAfterSave = true;
+            Closing -= OnClosing;
+            Close();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                this,
+                $"Unable to save the selected note before closing.\n\n{ex.Message}",
+                "QingJian",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+        finally
+        {
+            _isCloseSaveInProgress = false;
+        }
+    }
+
+    private async Task PullLatestEditorMarkdownAsync()
+    {
+        var selectedNote = _viewModel.SelectedNote;
+        if (!_isEditorReady || MarkdownWebView.CoreWebView2 is null || selectedNote is null)
+        {
+            return;
+        }
+
+        await _editorLoadSemaphore.WaitAsync();
+        try
+        {
+            var result = await MarkdownWebView.ExecuteScriptAsync("window.qingjianEditor.getMarkdown();");
+
+            if (_viewModel.SelectedNote != selectedNote)
+            {
+                return;
+            }
+
+            var markdown = JsonSerializer.Deserialize<string>(result) ?? string.Empty;
+
+            if (_editorState.TryApplyEditorMarkdown(selectedNote.Id, markdown, out var normalizedMarkdown))
+            {
+                selectedNote.Content = normalizedMarkdown;
+            }
+        }
+        catch (Exception) when (_isClosingAfterSave || _isCloseSaveInProgress)
+        {
+            return;
+        }
+        finally
+        {
+            _editorLoadSemaphore.Release();
         }
     }
 
@@ -97,36 +156,64 @@ public partial class MainWindow : Window
 
         if (_pendingEditorMarkdown is not null)
         {
-            await SetEditorMarkdownAsync(_pendingEditorMarkdown);
+            var noteId = _pendingEditorNoteId;
+            var markdown = _pendingEditorMarkdown;
+            var loadVersion = _pendingEditorLoadVersion;
+            await SetEditorMarkdownAsync(noteId, markdown, loadVersion);
             _pendingEditorMarkdown = null;
+            _pendingEditorNoteId = null;
         }
     }
 
     private async Task LoadSelectedNoteIntoEditorAsync()
     {
-        var markdown = _editorState.BeginLoad(_viewModel.SelectedNote?.Id, _viewModel.SelectedNote?.Content);
+        var selectedNote = _viewModel.SelectedNote;
+        var noteId = selectedNote?.Id;
+        var markdown = _editorState.BeginLoad(noteId, selectedNote?.Content);
+        var loadVersion = Interlocked.Increment(ref _editorLoadVersion);
 
         if (!_isEditorReady)
         {
+            _pendingEditorNoteId = noteId;
             _pendingEditorMarkdown = markdown;
+            _pendingEditorLoadVersion = loadVersion;
             return;
         }
 
-        await SetEditorMarkdownAsync(markdown);
-        _editorState.EndLoad();
+        await SetEditorMarkdownAsync(noteId, markdown, loadVersion);
     }
 
-    private async Task SetEditorMarkdownAsync(string markdown)
+    private async Task SetEditorMarkdownAsync(string? noteId, string markdown, int loadVersion)
     {
         if (!_isEditorReady || MarkdownWebView.CoreWebView2 is null)
         {
+            _pendingEditorNoteId = noteId;
             _pendingEditorMarkdown = markdown;
+            _pendingEditorLoadVersion = loadVersion;
             return;
         }
 
-        var json = JsonSerializer.Serialize(markdown);
-        await MarkdownWebView.ExecuteScriptAsync($"window.qingjianEditor.setMarkdown({json});");
-        _editorState.EndLoad();
+        await _editorLoadSemaphore.WaitAsync();
+        try
+        {
+            if (loadVersion != _editorLoadVersion)
+            {
+                return;
+            }
+
+            var noteIdJson = JsonSerializer.Serialize(noteId ?? string.Empty);
+            var markdownJson = JsonSerializer.Serialize(markdown);
+            await MarkdownWebView.ExecuteScriptAsync($"window.qingjianEditor.setMarkdown({noteIdJson}, {markdownJson});");
+
+            if (loadVersion == _editorLoadVersion)
+            {
+                _editorState.EndLoad();
+            }
+        }
+        finally
+        {
+            _editorLoadSemaphore.Release();
+        }
     }
 
     private void MarkdownWebView_OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
@@ -141,7 +228,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!_editorState.TryApplyEditorMarkdown(message.Markdown, out var markdown))
+        if (!_editorState.TryApplyEditorMarkdown(message.NoteId, message.Markdown, out var markdown))
         {
             return;
         }

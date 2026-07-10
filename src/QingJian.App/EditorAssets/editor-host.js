@@ -1,6 +1,7 @@
 (function () {
   let editor = null;
   let isSettingMarkdown = false;
+  let activeNoteId = "";
 
   function postMarkdownChanged() {
     if (isSettingMarkdown || !editor || !window.chrome || !window.chrome.webview) {
@@ -9,6 +10,7 @@
 
     window.chrome.webview.postMessage({
       type: "markdownChanged",
+      noteId: activeNoteId,
       markdown: editor.getMarkdown()
     });
   }
@@ -25,18 +27,24 @@
         initialEditType: "wysiwyg",
         previewStyle: "vertical",
         usageStatistics: false,
-        initialValue: ""
+        initialValue: "",
+        hooks: {
+          addImageBlobHook: function () {
+            return false;
+          }
+        }
       });
 
       editor.on("change", postMarkdownChanged);
       return true;
     },
 
-    setMarkdown: function (markdown) {
+    setMarkdown: function (noteId, markdown) {
       if (!editor) {
         return false;
       }
 
+      activeNoteId = noteId || "";
       isSettingMarkdown = true;
       editor.setMarkdown(markdown || "", false);
       isSettingMarkdown = false;

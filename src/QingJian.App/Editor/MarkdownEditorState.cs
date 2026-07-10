@@ -21,11 +21,17 @@ public sealed class MarkdownEditorState
         _isLoadingFromSelection = false;
     }
 
-    public bool TryApplyEditorMarkdown(string markdown, out string normalizedMarkdown)
+    public bool TryApplyEditorMarkdown(string? noteId, string markdown, out string normalizedMarkdown)
     {
         normalizedMarkdown = markdown ?? string.Empty;
 
         if (_isLoadingFromSelection)
+        {
+            normalizedMarkdown = CurrentMarkdown;
+            return false;
+        }
+
+        if (noteId != CurrentNoteId)
         {
             normalizedMarkdown = CurrentMarkdown;
             return false;
