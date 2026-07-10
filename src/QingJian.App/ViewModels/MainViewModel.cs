@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using QingJian.App.Models;
 using QingJian.App.Services;
 
@@ -7,12 +8,21 @@ namespace QingJian.App.ViewModels;
 public sealed class MainViewModel : ViewModelBase
 {
     private readonly INoteService _noteService;
+    private readonly TimeSpan _autoSaveDelay;
+    private CancellationTokenSource? _autoSaveCancellation;
     private Note? _selectedNote;
     private bool _isBusy;
+    private bool _isLoadingSelection;
 
     public MainViewModel(INoteService noteService)
+        : this(noteService, TimeSpan.FromMilliseconds(700))
+    {
+    }
+
+    public MainViewModel(INoteService noteService, TimeSpan autoSaveDelay)
     {
         _noteService = noteService;
+        _autoSaveDelay = autoSaveDelay;
         NewNoteCommand = new AsyncRelayCommand(NewNoteAsync);
         DeleteSelectedNoteCommand = new AsyncRelayCommand(DeleteSelectedNoteAsync, () => SelectedNote is not null);
     }
@@ -24,11 +34,25 @@ public sealed class MainViewModel : ViewModelBase
         get => _selectedNote;
         set
         {
-            if (SetField(ref _selectedNote, value))
+            if (_selectedNote == value)
             {
-                OnPropertyChanged(nameof(IsEmpty));
-                DeleteSelectedNoteCommand.RaiseCanExecuteChanged();
+                return;
             }
+
+            if (_selectedNote is not null)
+            {
+                _selectedNote.PropertyChanged -= OnSelectedNotePropertyChanged;
+            }
+
+            _selectedNote = value;
+
+            if (_selectedNote is not null)
+            {
+                _selectedNote.PropertyChanged += OnSelectedNotePropertyChanged;
+            }
+
+            OnPropertyChanged();
+            DeleteSelectedNoteCommand.RaiseCanExecuteChanged();
         }
     }
 
@@ -47,6 +71,7 @@ public sealed class MainViewModel : ViewModelBase
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
         IsBusy = true;
+        _isLoadingSelection = true;
 
         try
         {
@@ -64,6 +89,7 @@ public sealed class MainViewModel : ViewModelBase
         }
         finally
         {
+            _isLoadingSelection = false;
             IsBusy = false;
         }
     }
@@ -103,8 +129,69 @@ public sealed class MainViewModel : ViewModelBase
 
     public Task SaveSelectedNoteNowAsync(CancellationToken cancellationToken = default)
     {
-        return SelectedNote is null
-            ? Task.CompletedTask
-            : _noteService.SaveNoteAsync(SelectedNote, cancellationToken);
+        _autoSaveCancellation?.Cancel();
+
+        if (SelectedNote is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return SaveSelectedNoteAsync(cancellationToken);
+    }
+
+    private void OnSelectedNotePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_isLoadingSelection || e.PropertyName is not (nameof(Note.Title) or nameof(Note.Content)))
+        {
+            return;
+        }
+
+        ScheduleAutoSave();
+    }
+
+    private void ScheduleAutoSave()
+    {
+        _autoSaveCancellation?.Cancel();
+        var cancellation = new CancellationTokenSource();
+        _autoSaveCancellation = cancellation;
+
+        _ = SaveAfterDelayAsync(cancellation.Token);
+    }
+
+    private async Task SaveAfterDelayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(_autoSaveDelay, cancellationToken);
+            await SaveSelectedNoteAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task SaveSelectedNoteAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedNote is null)
+        {
+            return;
+        }
+
+        await _noteService.SaveNoteAsync(SelectedNote, cancellationToken);
+        MoveSelectedNoteToTop();
+    }
+
+    private void MoveSelectedNoteToTop()
+    {
+        if (SelectedNote is null)
+        {
+            return;
+        }
+
+        var index = Notes.IndexOf(SelectedNote);
+        if (index > 0)
+        {
+            Notes.Move(index, 0);
+        }
     }
 }

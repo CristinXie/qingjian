@@ -122,6 +122,35 @@ public sealed class MainViewModelTests
         Assert.True(becameEmpty);
     }
 
+    [Fact]
+    public async Task SaveSelectedNoteNowAsync_SavesSelectedNote()
+    {
+        var note = CreateNote("note-1", "Original");
+        var service = new InMemoryNoteService(note);
+        var viewModel = new MainViewModel(service);
+        await viewModel.LoadAsync();
+
+        viewModel.SelectedNote!.Title = "Changed";
+        await viewModel.SaveSelectedNoteNowAsync();
+
+        Assert.Single(service.SavedIds);
+        Assert.Equal("note-1", service.SavedIds[0]);
+    }
+
+    [Fact]
+    public async Task EditingSelectedNote_AutoSavesAfterDelay()
+    {
+        var note = CreateNote("note-1", "Original");
+        var service = new InMemoryNoteService(note);
+        var viewModel = new MainViewModel(service, TimeSpan.FromMilliseconds(10));
+        await viewModel.LoadAsync();
+
+        viewModel.SelectedNote!.Content = "Changed";
+        await WaitUntilAsync(() => service.SavedIds.Contains("note-1"));
+
+        Assert.Contains("note-1", service.SavedIds);
+    }
+
     private static Note CreateNote(string id, string title)
     {
         return new Note
@@ -146,6 +175,8 @@ public sealed class MainViewModelTests
 
         public List<string> DeletedIds { get; } = new();
 
+        public List<string> SavedIds { get; } = new();
+
         public Task InitializeAsync(CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
@@ -165,6 +196,7 @@ public sealed class MainViewModelTests
 
         public Task SaveNoteAsync(Note note, CancellationToken cancellationToken = default)
         {
+            SavedIds.Add(note.Id);
             return Task.CompletedTask;
         }
 

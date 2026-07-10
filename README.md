@@ -17,3 +17,15 @@ dotnet build
 dotnet test
 dotnet run --project src\QingJian.App\QingJian.App.csproj
 ```
+
+## Data Location
+
+The MVP stores notes in:
+
+```text
+%LOCALAPPDATA%\QingJian\qingjian.db
+```
+
+## Branch Flow
+
+Feature work starts from `develop`, uses `feature/*` branches, and merges back to `develop` after tests pass.
