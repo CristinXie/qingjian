@@ -46,7 +46,24 @@ public partial class MainWindow : Window
 
     private async void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
+        await PullLatestEditorMarkdownAsync();
         await _viewModel.SaveSelectedNoteNowAsync();
+    }
+
+    private async Task PullLatestEditorMarkdownAsync()
+    {
+        if (!_isEditorReady || MarkdownWebView.CoreWebView2 is null || _viewModel.SelectedNote is null)
+        {
+            return;
+        }
+
+        var result = await MarkdownWebView.ExecuteScriptAsync("window.qingjianEditor.getMarkdown();");
+        var markdown = JsonSerializer.Deserialize<string>(result) ?? string.Empty;
+
+        if (_editorState.TryApplyEditorMarkdown(markdown, out var normalizedMarkdown))
+        {
+            _viewModel.SelectedNote.Content = normalizedMarkdown;
+        }
     }
 
     private async Task InitializeMarkdownEditorAsync()
