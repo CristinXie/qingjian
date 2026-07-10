@@ -7,8 +7,9 @@ Runtime files:
 - `toastui-editor-all.min.js`
 - `toastui-editor.min.css`
 
-Source package:
+Sources:
 
-- npm: `@toast-ui/editor`
+- `toastui-editor-all.min.js` is generated from `@toast-ui/editor@3.2.2` with esbuild as a minified, self-contained browser IIFE that exposes `window.toastui.Editor`.
+- `toastui-editor.min.css` comes from `@toast-ui/editor@3.2.2`.
 
 Runtime editing must not depend on a CDN.
