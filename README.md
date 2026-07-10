@@ -4,6 +4,19 @@ QingJian is a native Windows sticky-notes app built with WPF, .NET 8, and SQLite
 
 ## MVP
 
+## Markdown Editing
+
+- Note bodies are stored as Markdown text.
+- The editor opens in WYSIWYG mode by default.
+- Markdown source mode remains available inside the editor.
+- Network image Markdown links are supported.
+- Local image attachments are not part of the first Markdown editor version.
+
+## Runtime Requirements
+
+- Windows with the Microsoft Edge WebView2 Runtime installed.
+- .NET 8 SDK for development.
+
 - Open directly to a notes interface.
 - Create, edit, and soft-delete notes.
 - Persist notes locally with SQLite.
