@@ -29,3 +29,13 @@ The MVP stores notes in:
 ## Branch Flow
 
 Feature work starts from `develop`, uses `feature/*` branches, and merges back to `develop` after tests pass.
+
+## v0.1.0 Acceptance
+
+- Launches as a WPF Windows app.
+- Opens directly to the notes interface.
+- Creates notes.
+- Edits title and content.
+- Saves edits automatically.
+- Soft-deletes notes.
+- Restores notes after restart.
