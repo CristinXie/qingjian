@@ -13,6 +13,14 @@ public sealed class AttachmentServiceTests : IDisposable
     }
 
     [Fact]
+    public void Constructor_CreatesAttachmentFolderForWebViewMapping()
+    {
+        _ = new AttachmentService(_attachmentFolder);
+
+        Assert.True(Directory.Exists(_attachmentFolder));
+    }
+
+    [Fact]
     public async Task SaveImageAsync_WritesDataUrlAndReturnsAssetUrl()
     {
         var service = new AttachmentService(_attachmentFolder);
@@ -25,6 +33,34 @@ public sealed class AttachmentServiceTests : IDisposable
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, await File.ReadAllBytesAsync(Path.Combine(_attachmentFolder, result.FileName)));
     }
 
+    [Fact]
+    public async Task SaveImageFileAsync_CopiesLocalImageFile()
+    {
+        Directory.CreateDirectory(_attachmentFolder);
+        var sourcePath = Path.Combine(_attachmentFolder, "source.png");
+        await File.WriteAllBytesAsync(sourcePath, new byte[] { 5, 6, 7 });
+        var service = new AttachmentService(_attachmentFolder);
+
+        var result = await service.SaveImageFileAsync(sourcePath);
+
+        File.Delete(sourcePath);
+        Assert.StartsWith("https://qingjian-assets.local/", result.AssetUrl);
+        Assert.EndsWith(".png", result.FileName);
+        Assert.Equal(new byte[] { 5, 6, 7 }, await File.ReadAllBytesAsync(Path.Combine(_attachmentFolder, result.FileName)));
+    }
+
+    [Fact]
+    public async Task SaveImageBytesAsync_WritesClipboardImageBytes()
+    {
+        var service = new AttachmentService(_attachmentFolder);
+
+        var result = await service.SaveImageBytesAsync("clipboard.png", new byte[] { 8, 9, 10 });
+
+        Assert.StartsWith("https://qingjian-assets.local/", result.AssetUrl);
+        Assert.EndsWith(".png", result.FileName);
+        Assert.Equal(new byte[] { 8, 9, 10 }, await File.ReadAllBytesAsync(Path.Combine(_attachmentFolder, result.FileName)));
+    }
+
     [Theory]
     [InlineData("data:text/plain;base64,AQID")]
     [InlineData("not-a-data-url")]
@@ -34,6 +70,17 @@ public sealed class AttachmentServiceTests : IDisposable
         var service = new AttachmentService(_attachmentFolder);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.SaveImageAsync("bad.png", dataUrl));
+    }
+
+    [Fact]
+    public async Task SaveImageFileAsync_RejectsUnsupportedFileType()
+    {
+        Directory.CreateDirectory(_attachmentFolder);
+        var sourcePath = Path.Combine(_attachmentFolder, "note.txt");
+        await File.WriteAllTextAsync(sourcePath, "not an image");
+        var service = new AttachmentService(_attachmentFolder);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.SaveImageFileAsync(sourcePath));
     }
 
     public void Dispose()

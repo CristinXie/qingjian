@@ -30,8 +30,42 @@
       return false;
     }
 
+    if (typeof editor.exec === "function") {
+      try {
+        editor.exec("addImage", { imageUrl: url, altText: "image" });
+        postMarkdownChanged();
+        return true;
+      } catch {
+        // Fall back to markdown text insertion below.
+      }
+    }
+
     editor.insertText(`![image](${url})`);
+    postMarkdownChanged();
     return true;
+  }
+
+  function getImageFiles(data) {
+    if (!data) {
+      return [];
+    }
+
+    const files = Array.from(data.files || []).filter((file) => /^image\//i.test(file.type || ""));
+    const itemFiles = Array.from(data.items || [])
+      .filter((item) => item.kind === "file" && /^image\//i.test(item.type || ""))
+      .map((item) => item.getAsFile())
+      .filter((file) => file && /^image\//i.test(file.type || ""));
+
+    const seen = new Set();
+    return [...files, ...itemFiles].filter((file) => {
+      const key = `${file.name || ""}:${file.type || ""}:${file.size || 0}:${file.lastModified || 0}`;
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    });
   }
 
   function postEditorModeChanged(editorMode) {
@@ -42,6 +76,16 @@
     window.chrome.webview.postMessage({
       type: "editorModeChanged",
       editorMode: editorMode
+    });
+  }
+
+  function postNativePasteRequested() {
+    if (!window.chrome || !window.chrome.webview) {
+      return;
+    }
+
+    window.chrome.webview.postMessage({
+      type: "nativePasteRequested"
     });
   }
 
@@ -102,11 +146,11 @@
   }
 
   function preventLocalImageDrop(event) {
-    const files = event.dataTransfer ? Array.from(event.dataTransfer.files || []) : [];
-    if (files.some((file) => /^image\//i.test(file.type || ""))) {
+    const files = getImageFiles(event.dataTransfer);
+    if (files.length > 0) {
       event.preventDefault();
       event.stopPropagation();
-      files.filter((file) => /^image\//i.test(file.type || "")).forEach((file) => {
+      files.forEach((file) => {
         requestLocalImageUpload(file, insertImageMarkdown);
       });
       return;
@@ -119,18 +163,39 @@
     }
   }
 
-  function handlePaste(event) {
-    const files = event.clipboardData ? Array.from(event.clipboardData.files || []) : [];
-    if (files.some((file) => /^image\//i.test(file.type || ""))) {
+  function handleDragOver(event) {
+    const files = getImageFiles(event.dataTransfer);
+    const hasImageUrl = event.dataTransfer &&
+      Array.from(event.dataTransfer.types || []).some((type) => type === "text/uri-list" || type === "text/plain");
+
+    if (files.length > 0 || hasImageUrl) {
       event.preventDefault();
       event.stopPropagation();
-      files.filter((file) => /^image\//i.test(file.type || "")).forEach((file) => {
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "copy";
+      }
+    }
+  }
+
+  function handlePaste(event) {
+    const files = getImageFiles(event.clipboardData);
+    if (files.length > 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      files.forEach((file) => {
         requestLocalImageUpload(file, insertImageMarkdown);
       });
       return;
     }
 
     const text = event.clipboardData ? event.clipboardData.getData("text/plain") : "";
+    if (!text) {
+      event.preventDefault();
+      event.stopPropagation();
+      postNativePasteRequested();
+      return;
+    }
+
     if (insertImageMarkdown((text || "").trim())) {
       event.preventDefault();
       event.stopPropagation();
@@ -162,6 +227,7 @@
       editor.on("change", postMarkdownChanged);
       editor.on("changeMode", postEditorModeChanged);
       document.addEventListener("click", handleDocumentClick, true);
+      document.addEventListener("dragover", handleDragOver, true);
       document.addEventListener("drop", preventLocalImageDrop, true);
       document.addEventListener("paste", handlePaste, true);
       return true;
@@ -206,6 +272,10 @@
       pendingImageCallbacks.delete(requestId);
       callback(url);
       return true;
+    },
+
+    insertImage: function (url) {
+      return insertImageMarkdown(url);
     }
   };
 

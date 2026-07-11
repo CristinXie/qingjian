@@ -16,6 +16,7 @@ public readonly record struct EditorMessage(
     public const string ExternalLinkRequestedType = "externalLinkRequested";
     public const string LocalImageRequestedType = "localImageRequested";
     public const string EditorModeChangedType = "editorModeChanged";
+    public const string NativePasteRequestedType = "nativePasteRequested";
 
     public static EditorMessage Empty { get; } = new(
         string.Empty,
@@ -49,9 +50,15 @@ public readonly record struct EditorMessage(
             if (!root.TryGetProperty("type", out var typeElement) ||
                 typeElement.ValueKind != JsonValueKind.String ||
                 typeElement.GetString() is not { } type ||
-                type is not (MarkdownChangedType or ExternalLinkRequestedType or LocalImageRequestedType or EditorModeChangedType))
+                type is not (MarkdownChangedType or ExternalLinkRequestedType or LocalImageRequestedType or EditorModeChangedType or NativePasteRequestedType))
             {
                 return false;
+            }
+
+            if (type == NativePasteRequestedType)
+            {
+                message = new EditorMessage(type, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
+                return true;
             }
 
             if (type == ExternalLinkRequestedType)

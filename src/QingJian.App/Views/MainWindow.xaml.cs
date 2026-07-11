@@ -1,10 +1,12 @@
 using System.IO;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Microsoft.Web.WebView2.Core;
 using QingJian.App.Editor;
 using QingJian.App.Services;
@@ -259,6 +261,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (message.Type == EditorMessage.NativePasteRequestedType)
+        {
+            _ = TryPasteImageFromClipboardAsync();
+            return;
+        }
+
         if (_viewModel.SelectedNote is null)
         {
             return;
@@ -339,6 +347,93 @@ public partial class MainWindow : Window
         catch (InvalidOperationException)
         {
         }
+    }
+
+    private async Task<bool> TryPasteImageFromClipboardAsync()
+    {
+        if (!_isEditorReady || MarkdownWebView.CoreWebView2 is null || _viewModel.SelectedNote is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (Clipboard.ContainsFileDropList())
+            {
+                var imagePaths = Clipboard.GetFileDropList()
+                    .Cast<string>()
+                    .Where(IsSupportedImagePath)
+                    .ToArray();
+
+                if (imagePaths.Length > 0)
+                {
+                    await InsertImageFilesAsync(imagePaths);
+                    return true;
+                }
+            }
+
+            if (Clipboard.ContainsImage())
+            {
+                var image = Clipboard.GetImage();
+                if (image is null)
+                {
+                    return false;
+                }
+
+                var attachment = await _attachmentService.SaveImageBytesAsync("clipboard.png", EncodePng(image));
+                await InsertImageAssetAsync(attachment.AssetUrl);
+                return true;
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (ExternalException)
+        {
+        }
+
+        return false;
+    }
+
+    private async Task InsertImageFilesAsync(IEnumerable<string> imagePaths)
+    {
+        foreach (var imagePath in imagePaths)
+        {
+            try
+            {
+                var attachment = await _attachmentService.SaveImageFileAsync(imagePath);
+                await InsertImageAssetAsync(attachment.AssetUrl);
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+    }
+
+    private async Task InsertImageAssetAsync(string assetUrl)
+    {
+        if (!_isEditorReady || MarkdownWebView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        var assetUrlJson = JsonSerializer.Serialize(assetUrl);
+        await MarkdownWebView.ExecuteScriptAsync($"window.qingjianEditor.insertImage({assetUrlJson});");
+    }
+
+    private static bool IsSupportedImagePath(string path)
+    {
+        return Path.GetExtension(path).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp" or ".svg";
+    }
+
+    private static byte[] EncodePng(BitmapSource image)
+    {
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(image));
+
+        using var stream = new MemoryStream();
+        encoder.Save(stream);
+        return stream.ToArray();
     }
 
     private void TitleTextBox_OnGotKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)

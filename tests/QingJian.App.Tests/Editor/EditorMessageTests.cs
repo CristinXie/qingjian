@@ -80,6 +80,17 @@ public sealed class EditorMessageTests
         Assert.Equal("markdown", message.EditorMode);
     }
 
+    [Fact]
+    public void TryParse_ReturnsNativePasteRequestedMessage()
+    {
+        var parsed = EditorMessage.TryParse(
+            """{"type":"nativePasteRequested"}""",
+            out var message);
+
+        Assert.True(parsed);
+        Assert.Equal("nativePasteRequested", message.Type);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

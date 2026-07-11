@@ -17,6 +17,7 @@ public sealed class AttachmentService
     public AttachmentService(string attachmentFolder)
     {
         _attachmentFolder = attachmentFolder;
+        Directory.CreateDirectory(_attachmentFolder);
     }
 
     public string AttachmentFolder => _attachmentFolder;
@@ -42,9 +43,53 @@ public sealed class AttachmentService
             throw new InvalidOperationException("Image data is not valid base64.", ex);
         }
 
-        Directory.CreateDirectory(_attachmentFolder);
-
         var extension = GetSafeExtension(originalFileName, match.Groups["type"].Value);
+        return await SaveImageBytesCoreAsync(extension, bytes, cancellationToken);
+    }
+
+    public async Task<SavedAttachment> SaveImageFileAsync(
+        string imagePath,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
+        {
+            throw new InvalidOperationException("Image file does not exist.");
+        }
+
+        var extension = Path.GetExtension(imagePath).ToLowerInvariant();
+        if (!IsSafeImageExtension(extension))
+        {
+            throw new InvalidOperationException("Only image files can be saved as attachments.");
+        }
+
+        var bytes = await File.ReadAllBytesAsync(imagePath, cancellationToken);
+        return await SaveImageBytesCoreAsync(extension, bytes, cancellationToken);
+    }
+
+    public Task<SavedAttachment> SaveImageBytesAsync(
+        string originalFileName,
+        byte[] bytes,
+        CancellationToken cancellationToken = default)
+    {
+        var extension = Path.GetExtension(originalFileName).ToLowerInvariant();
+        if (!IsSafeImageExtension(extension))
+        {
+            throw new InvalidOperationException("Only image bytes with a supported image file name can be saved as attachments.");
+        }
+
+        return SaveImageBytesCoreAsync(extension, bytes, cancellationToken);
+    }
+
+    private async Task<SavedAttachment> SaveImageBytesCoreAsync(
+        string extension,
+        byte[] bytes,
+        CancellationToken cancellationToken)
+    {
+        if (bytes.Length == 0)
+        {
+            throw new InvalidOperationException("Image data cannot be empty.");
+        }
+
         var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}{extension}";
         var path = Path.Combine(_attachmentFolder, fileName);
 
@@ -55,7 +100,7 @@ public sealed class AttachmentService
     private static string GetSafeExtension(string originalFileName, string imageType)
     {
         var originalExtension = Path.GetExtension(originalFileName).ToLowerInvariant();
-        if (originalExtension is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp" or ".svg")
+        if (IsSafeImageExtension(originalExtension))
         {
             return originalExtension;
         }
@@ -66,5 +111,10 @@ public sealed class AttachmentService
             "svg+xml" => ".svg",
             var type => $".{type}"
         };
+    }
+
+    private static bool IsSafeImageExtension(string extension)
+    {
+        return extension is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp" or ".svg";
     }
 }
