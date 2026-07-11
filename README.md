@@ -15,7 +15,15 @@ QingJian is a native Windows sticky-notes app built with WPF, .NET 8, and SQLite
 - The editor opens in WYSIWYG mode by default.
 - Markdown source mode remains available inside the editor.
 - Network image Markdown links are supported.
-- Local image attachments are not part of the first Markdown editor version.
+- Local image attachments are supported through toolbar upload, drag/drop, and paste.
+
+## Project Status
+
+For the current implementation state, branch workflow, known decisions, and new-conversation handoff instructions, see:
+
+```text
+docs/project-status.md
+```
 
 ## Runtime Requirements
 
