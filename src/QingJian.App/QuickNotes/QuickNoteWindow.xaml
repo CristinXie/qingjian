@@ -1,0 +1,78 @@
+<Window x:Class="QingJian.App.QuickNotes.QuickNoteWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Quick Note"
+        Width="420"
+        Height="320"
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Background="Transparent"
+        AllowsTransparency="True"
+        KeyDown="Window_OnKeyDown">
+    <Border Background="{StaticResource QuickNoteBackgroundBrush}"
+            BorderBrush="{StaticResource QuickNoteBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="14">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="28" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0"
+                    Background="Transparent"
+                    MouseLeftButtonDown="DragHandle_OnMouseLeftButtonDown">
+                <TextBlock Text="快速便签"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           FontSize="12"
+                           VerticalAlignment="Center" />
+            </Border>
+
+            <TextBox x:Name="TitleTextBox"
+                     Grid.Row="1"
+                     Margin="0,4,0,10"
+                     FontSize="18"
+                     FontWeight="SemiBold"
+                     AcceptsReturn="False"
+                     TextWrapping="NoWrap"
+                     VerticalScrollBarVisibility="Disabled" />
+
+            <TextBox x:Name="BodyTextBox"
+                     Grid.Row="2"
+                     FontSize="14"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto"
+                     TextChanged="BodyTextBox_OnTextChanged" />
+
+            <TextBlock x:Name="ErrorTextBlock"
+                       Grid.Row="3"
+                       Margin="0,8,0,0"
+                       Foreground="{StaticResource QuickNoteErrorBrush}"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Visibility="Collapsed" />
+
+            <DockPanel Grid.Row="4" Margin="0,12,0,0" LastChildFill="False">
+                <TextBlock Text="Ctrl+Enter 保存 · Esc 取消"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           FontSize="12"
+                           VerticalAlignment="Center" />
+                <Button x:Name="SaveButton"
+                        Content="保存"
+                        DockPanel.Dock="Right"
+                        Margin="8,0,0,0"
+                        Click="SaveButton_OnClick" />
+                <Button Content="取消"
+                        DockPanel.Dock="Right"
+                        Click="CancelButton_OnClick" />
+            </DockPanel>
+        </Grid>
+    </Border>
+</Window>
