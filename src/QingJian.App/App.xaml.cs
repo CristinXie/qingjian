@@ -28,8 +28,10 @@ public partial class App : Application
         var repository = new NoteRepository(dbContext);
         var service = new NoteService(repository);
         var viewModel = new MainViewModel(service);
+        var settingsService = new AppSettingsService(appDataFolder);
+        var attachmentService = new AttachmentService(Path.Combine(appDataFolder, "attachments"));
 
-        var window = new MainWindow(viewModel);
+        var window = new MainWindow(viewModel, settingsService, attachmentService);
         window.Show();
     }
 }
