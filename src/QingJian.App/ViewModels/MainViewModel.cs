@@ -127,6 +127,23 @@ public sealed class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsEmpty));
     }
 
+    public void AddSavedNote(Note note, bool select)
+    {
+        var wasEmpty = IsEmpty;
+
+        Notes.Insert(0, note);
+
+        if (select)
+        {
+            SelectedNote = note;
+        }
+
+        if (wasEmpty)
+        {
+            OnPropertyChanged(nameof(IsEmpty));
+        }
+    }
+
     public Task SaveSelectedNoteNowAsync(CancellationToken cancellationToken = default)
     {
         _autoSaveCancellation?.Cancel();
