@@ -2,6 +2,8 @@ using System.IO;
 using System.Windows;
 using Microsoft.EntityFrameworkCore;
 using QingJian.App.Data;
+using QingJian.App.Hotkeys;
+using QingJian.App.QuickNotes;
 using QingJian.App.Services;
 using QingJian.App.ViewModels;
 using QingJian.App.Views;
@@ -10,6 +12,8 @@ namespace QingJian.App;
 
 public partial class App : Application
 {
+    private GlobalHotkeyService? _hotkeyService;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -32,6 +36,34 @@ public partial class App : Application
         var attachmentService = new AttachmentService(Path.Combine(appDataFolder, "attachments"));
 
         var window = new MainWindow(viewModel, settingsService, attachmentService);
+        var coordinator = new QuickNoteCoordinator(
+            service,
+            viewModel,
+            new QuickNoteWindowFactory(),
+            () => window.IsVisible && window.WindowState != WindowState.Minimized);
+
+        window.SourceInitialized += (_, _) =>
+        {
+            _hotkeyService = new GlobalHotkeyService();
+            _hotkeyService.HotkeyPressed += (_, _) => coordinator.OpenQuickNote();
+
+            if (!_hotkeyService.Register(window, HotkeyDefinition.QuickNoteHotkey))
+            {
+                MessageBox.Show(
+                    window,
+                    $"{HotkeyDefinition.QuickNoteHotkey.DisplayText} 快捷键注册失败，可能已被其他应用占用。",
+                    "QingJian",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+        };
+
         window.Show();
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _hotkeyService?.Dispose();
+        base.OnExit(e);
     }
 }

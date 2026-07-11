@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
+using System.Runtime.InteropServices;
 
 namespace QingJian.App.QuickNotes;
 
@@ -12,6 +13,7 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
         InitializeComponent();
         Loaded += (_, _) =>
         {
+            PositionNearMouse();
             UpdateSaveButtonState();
             BodyTextBox.Focus();
         };
@@ -111,6 +113,79 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
     private void UpdateSaveButtonState()
     {
         SaveButton.IsEnabled = QuickNoteTitleGenerator.HasBody(BodyTextBox.Text);
+    }
+
+    private void PositionNearMouse()
+    {
+        if (!TryGetCursorPos(out var cursor))
+        {
+            WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            return;
+        }
+
+        var workingArea = GetWorkingArea(cursor);
+        Left = Math.Min(Math.Max(cursor.X + 12, workingArea.Left), workingArea.Right - Width);
+        Top = Math.Min(Math.Max(cursor.Y + 12, workingArea.Top), workingArea.Bottom - Height);
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT point);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromPoint(POINT point, uint flags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO monitorInfo);
+
+    private static bool TryGetCursorPos(out POINT point)
+    {
+        return GetCursorPos(out point);
+    }
+
+    private static Rect GetWorkingArea(POINT cursor)
+    {
+        const uint monitorDefaultToNearest = 0x00000002;
+        var monitor = MonitorFromPoint(cursor, monitorDefaultToNearest);
+        var monitorInfo = new MONITORINFO
+        {
+            cbSize = Marshal.SizeOf<MONITORINFO>()
+        };
+
+        if (monitor != IntPtr.Zero && GetMonitorInfo(monitor, ref monitorInfo))
+        {
+            return new Rect(
+                monitorInfo.rcWork.Left,
+                monitorInfo.rcWork.Top,
+                monitorInfo.rcWork.Right - monitorInfo.rcWork.Left,
+                monitorInfo.rcWork.Bottom - monitorInfo.rcWork.Top);
+        }
+
+        return SystemParameters.WorkArea;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
     }
 }
 
