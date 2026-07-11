@@ -15,6 +15,8 @@ namespace QingJian.App.Views;
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _viewModel;
+    private readonly AppSettingsService _settingsService;
+    private readonly AttachmentService _attachmentService;
     private readonly MarkdownEditorState _editorState = new();
     private bool _isEditorReady;
     private bool _isUpdatingTitlePlaceholder;
@@ -24,13 +26,19 @@ public partial class MainWindow : Window
     private readonly SemaphoreSlim _editorLoadSemaphore = new(1, 1);
     private int _pendingEditorLoadVersion;
     private Uri? _editorUri;
+    private string _currentEditorMode = AppSettings.DefaultEditorMode;
     private string? _pendingEditorNoteId;
     private string? _pendingEditorMarkdown;
 
-    public MainWindow(MainViewModel viewModel)
+    public MainWindow(
+        MainViewModel viewModel,
+        AppSettingsService settingsService,
+        AttachmentService attachmentService)
     {
         InitializeComponent();
         _viewModel = viewModel;
+        _settingsService = settingsService;
+        _attachmentService = attachmentService;
         DataContext = _viewModel;
         Loaded += OnLoaded;
         Closing += OnClosing;
@@ -46,6 +54,7 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        _currentEditorMode = (await _settingsService.LoadAsync()).EditorMode;
         await InitializeMarkdownEditorAsync();
         await _viewModel.LoadAsync();
         UpdateTitlePlaceholderState();
@@ -133,6 +142,10 @@ public partial class MainWindow : Window
         {
             MarkdownWebView.WebMessageReceived += MarkdownWebView_OnWebMessageReceived;
             await MarkdownWebView.EnsureCoreWebView2Async();
+            MarkdownWebView.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                AttachmentService.AssetHostName,
+                _attachmentService.AttachmentFolder,
+                CoreWebView2HostResourceAccessKind.Allow);
             MarkdownWebView.CoreWebView2.NavigationStarting += MarkdownWebView_OnNavigationStarting;
             MarkdownWebView.CoreWebView2.NavigationCompleted += MarkdownWebView_OnNavigationCompleted;
 
@@ -157,6 +170,7 @@ public partial class MainWindow : Window
         }
 
         _isEditorReady = true;
+        await SetEditorModeAsync(_currentEditorMode);
 
         if (_pendingEditorMarkdown is not null)
         {
@@ -233,6 +247,18 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (message.Type == EditorMessage.EditorModeChangedType)
+        {
+            _ = SaveEditorModeAsync(message.EditorMode);
+            return;
+        }
+
+        if (message.Type == EditorMessage.LocalImageRequestedType)
+        {
+            _ = SaveLocalImageAsync(message);
+            return;
+        }
+
         if (_viewModel.SelectedNote is null)
         {
             return;
@@ -276,6 +302,43 @@ public partial class MainWindow : Window
         {
             UseShellExecute = true
         });
+    }
+
+    private async Task SetEditorModeAsync(string editorMode)
+    {
+        if (!_isEditorReady || MarkdownWebView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        var editorModeJson = JsonSerializer.Serialize(editorMode);
+        await MarkdownWebView.ExecuteScriptAsync($"window.qingjianEditor.setEditorMode({editorModeJson});");
+    }
+
+    private async Task SaveEditorModeAsync(string editorMode)
+    {
+        _currentEditorMode = new AppSettings(editorMode).Normalize().EditorMode;
+        await _settingsService.SaveAsync(new AppSettings(_currentEditorMode));
+    }
+
+    private async Task SaveLocalImageAsync(EditorMessage message)
+    {
+        if (!_isEditorReady || MarkdownWebView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var attachment = await _attachmentService.SaveImageAsync(message.FileName, message.DataUrl);
+            var requestIdJson = JsonSerializer.Serialize(message.RequestId);
+            var assetUrlJson = JsonSerializer.Serialize(attachment.AssetUrl);
+            await MarkdownWebView.ExecuteScriptAsync(
+                $"window.qingjianEditor.completeImageUpload({requestIdJson}, {assetUrlJson});");
+        }
+        catch (InvalidOperationException)
+        {
+        }
     }
 
     private void TitleTextBox_OnGotKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)

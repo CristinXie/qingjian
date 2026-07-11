@@ -54,6 +54,32 @@ public sealed class EditorMessageTests
         Assert.Equal("https://example.com", message.Url);
     }
 
+    [Fact]
+    public void TryParse_ReturnsLocalImageRequestedMessage()
+    {
+        var parsed = EditorMessage.TryParse(
+            """{"type":"localImageRequested","requestId":"request-1","fileName":"照片.png","dataUrl":"data:image/png;base64,abcd"}""",
+            out var message);
+
+        Assert.True(parsed);
+        Assert.Equal("localImageRequested", message.Type);
+        Assert.Equal("request-1", message.RequestId);
+        Assert.Equal("照片.png", message.FileName);
+        Assert.Equal("data:image/png;base64,abcd", message.DataUrl);
+    }
+
+    [Fact]
+    public void TryParse_ReturnsEditorModeChangedMessage()
+    {
+        var parsed = EditorMessage.TryParse(
+            """{"type":"editorModeChanged","editorMode":"markdown"}""",
+            out var message);
+
+        Assert.True(parsed);
+        Assert.Equal("editorModeChanged", message.Type);
+        Assert.Equal("markdown", message.EditorMode);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -68,6 +94,12 @@ public sealed class EditorMessageTests
     [InlineData("""{"type":"markdownChanged","markdown":{}}""")]
     [InlineData("""{"type":"externalLinkRequested","url":{}}""")]
     [InlineData("""{"type":"externalLinkRequested","url":""}""")]
+    [InlineData("""{"type":"localImageRequested","requestId":"","fileName":"a.png","dataUrl":"data:image/png;base64,abcd"}""")]
+    [InlineData("""{"type":"localImageRequested","requestId":"request-1","fileName":"","dataUrl":"data:image/png;base64,abcd"}""")]
+    [InlineData("""{"type":"localImageRequested","requestId":"request-1","fileName":"a.png","dataUrl":""}""")]
+    [InlineData("""{"type":"localImageRequested","requestId":{},"fileName":"a.png","dataUrl":"data:image/png;base64,abcd"}""")]
+    [InlineData("""{"type":"editorModeChanged","editorMode":"invalid"}""")]
+    [InlineData("""{"type":"editorModeChanged","editorMode":{}}""")]
     public void TryParse_RejectsMalformedOrUnsupportedMessages(string? json)
     {
         var parsed = EditorMessage.TryParse(json, out var message);

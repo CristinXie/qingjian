@@ -2,6 +2,8 @@
   let editor = null;
   let isSettingMarkdown = false;
   let activeNoteId = "";
+  let imageRequestCounter = 0;
+  const pendingImageCallbacks = new Map();
 
   function postMarkdownChanged() {
     if (isSettingMarkdown || !editor || !window.chrome || !window.chrome.webview) {
@@ -29,6 +31,48 @@
     }
 
     editor.insertText(`![image](${url})`);
+    return true;
+  }
+
+  function postEditorModeChanged(editorMode) {
+    if (!window.chrome || !window.chrome.webview || !editorMode) {
+      return;
+    }
+
+    window.chrome.webview.postMessage({
+      type: "editorModeChanged",
+      editorMode: editorMode
+    });
+  }
+
+  function requestLocalImageUpload(file, onUploaded) {
+    if (!file || !/^image\//i.test(file.type || "")) {
+      return false;
+    }
+
+    const requestId = `image-${Date.now()}-${++imageRequestCounter}`;
+    pendingImageCallbacks.set(requestId, onUploaded);
+
+    const reader = new FileReader();
+    reader.onload = function () {
+      if (!window.chrome || !window.chrome.webview) {
+        pendingImageCallbacks.delete(requestId);
+        return;
+      }
+
+      window.chrome.webview.postMessage({
+        type: "localImageRequested",
+        requestId: requestId,
+        fileName: file.name || "image",
+        dataUrl: String(reader.result || "")
+      });
+    };
+
+    reader.onerror = function () {
+      pendingImageCallbacks.delete(requestId);
+    };
+
+    reader.readAsDataURL(file);
     return true;
   }
 
@@ -62,6 +106,9 @@
     if (files.some((file) => /^image\//i.test(file.type || ""))) {
       event.preventDefault();
       event.stopPropagation();
+      files.filter((file) => /^image\//i.test(file.type || "")).forEach((file) => {
+        requestLocalImageUpload(file, insertImageMarkdown);
+      });
       return;
     }
 
@@ -77,6 +124,9 @@
     if (files.some((file) => /^image\//i.test(file.type || ""))) {
       event.preventDefault();
       event.stopPropagation();
+      files.filter((file) => /^image\//i.test(file.type || "")).forEach((file) => {
+        requestLocalImageUpload(file, insertImageMarkdown);
+      });
       return;
     }
 
@@ -101,13 +151,16 @@
         usageStatistics: false,
         initialValue: "",
         hooks: {
-          addImageBlobHook: function () {
-            return false;
+          addImageBlobHook: function (blob, callback) {
+            return requestLocalImageUpload(blob, function (url) {
+              callback(url, blob.name || "image");
+            });
           }
         }
       });
 
       editor.on("change", postMarkdownChanged);
+      editor.on("changeMode", postEditorModeChanged);
       document.addEventListener("click", handleDocumentClick, true);
       document.addEventListener("drop", preventLocalImageDrop, true);
       document.addEventListener("paste", handlePaste, true);
@@ -128,6 +181,31 @@
 
     getMarkdown: function () {
       return editor ? editor.getMarkdown() : "";
+    },
+
+    setEditorMode: function (editorMode) {
+      if (!editor || !editorMode || (editorMode !== "wysiwyg" && editorMode !== "markdown")) {
+        return false;
+      }
+
+      if ((editorMode === "wysiwyg" && editor.isWysiwygMode()) ||
+          (editorMode === "markdown" && editor.isMarkdownMode())) {
+        return true;
+      }
+
+      editor.changeMode(editorMode);
+      return true;
+    },
+
+    completeImageUpload: function (requestId, url) {
+      const callback = pendingImageCallbacks.get(requestId);
+      if (!callback) {
+        return false;
+      }
+
+      pendingImageCallbacks.delete(requestId);
+      callback(url);
+      return true;
     }
   };
 
