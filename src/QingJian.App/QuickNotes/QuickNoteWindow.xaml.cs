@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Runtime.InteropServices;
 
 namespace QingJian.App.QuickNotes;
@@ -117,15 +118,30 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
 
     private void PositionNearMouse()
     {
+        var transformFromDevice = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice
+            ?? Matrix.Identity;
+
         if (!TryGetCursorPos(out var cursor))
         {
-            WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            CenterInWorkingArea(SystemParameters.WorkArea);
             return;
         }
 
-        var workingArea = GetWorkingArea(cursor);
-        Left = Math.Min(Math.Max(cursor.X + 12, workingArea.Left), workingArea.Right - Width);
-        Top = Math.Min(Math.Max(cursor.Y + 12, workingArea.Top), workingArea.Bottom - Height);
+        if (!TryGetWorkingArea(cursor, transformFromDevice, out var workingArea))
+        {
+            CenterInWorkingArea(SystemParameters.WorkArea);
+            return;
+        }
+
+        var cursorDip = transformFromDevice.Transform(new Point(cursor.X, cursor.Y));
+        Left = Math.Min(Math.Max(cursorDip.X + 12, workingArea.Left), workingArea.Right - Width);
+        Top = Math.Min(Math.Max(cursorDip.Y + 12, workingArea.Top), workingArea.Bottom - Height);
+    }
+
+    private void CenterInWorkingArea(Rect workingArea)
+    {
+        Left = workingArea.Left + Math.Max(0, (workingArea.Width - Width) / 2);
+        Top = workingArea.Top + Math.Max(0, (workingArea.Height - Height) / 2);
     }
 
     [DllImport("user32.dll")]
@@ -142,7 +158,7 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
         return GetCursorPos(out point);
     }
 
-    private static Rect GetWorkingArea(POINT cursor)
+    private static bool TryGetWorkingArea(POINT cursor, Matrix transformFromDevice, out Rect workingArea)
     {
         const uint monitorDefaultToNearest = 0x00000002;
         var monitor = MonitorFromPoint(cursor, monitorDefaultToNearest);
@@ -153,14 +169,19 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
 
         if (monitor != IntPtr.Zero && GetMonitorInfo(monitor, ref monitorInfo))
         {
-            return new Rect(
+            var topLeft = transformFromDevice.Transform(new Point(
                 monitorInfo.rcWork.Left,
-                monitorInfo.rcWork.Top,
-                monitorInfo.rcWork.Right - monitorInfo.rcWork.Left,
-                monitorInfo.rcWork.Bottom - monitorInfo.rcWork.Top);
+                monitorInfo.rcWork.Top));
+            var bottomRight = transformFromDevice.Transform(new Point(
+                monitorInfo.rcWork.Right,
+                monitorInfo.rcWork.Bottom));
+
+            workingArea = new Rect(topLeft, bottomRight);
+            return true;
         }
 
-        return SystemParameters.WorkArea;
+        workingArea = Rect.Empty;
+        return false;
     }
 
     [StructLayout(LayoutKind.Sequential)]
