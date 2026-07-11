@@ -39,11 +39,20 @@ public sealed class QuickNoteCoordinator
             return QuickNoteSaveResult.Failure("请输入便签内容。");
         }
 
-        var body = draft.Body.Trim();
+        var body = draft.Body;
         var note = await _noteService.CreateNoteAsync(cancellationToken);
-        note.Title = QuickNoteTitleGenerator.CreateTitle(draft.Title, body);
-        note.Content = body;
-        await _noteService.SaveNoteAsync(note, cancellationToken);
+
+        try
+        {
+            note.Title = QuickNoteTitleGenerator.CreateTitle(draft.Title, body);
+            note.Content = body;
+            await _noteService.SaveNoteAsync(note, cancellationToken);
+        }
+        catch
+        {
+            await _noteService.DeleteNoteAsync(note, cancellationToken);
+            throw;
+        }
 
         if (syncToMainWindow)
         {
