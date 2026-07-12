@@ -2,7 +2,7 @@
 
 Last updated: 2026-07-12
 Stable branch: `develop`
-Latest feature merge at update time: `547441e merge: markdown editor feature`
+Latest feature merge at update time: `b77f5f1 merge: hotkey quick note feature`
 
 ## Purpose
 
@@ -94,8 +94,17 @@ The app currently supports a local notes workflow:
 ### Hotkey Quick Notes
 
 - `Ctrl + Alt + N` opens a new independent quick-note window while the app is running.
-- Quick-note windows are borderless, draggable, and save through the existing local note storage.
+- Every shortcut press opens a separate quick-note window; there is no single-window cap.
+- Quick-note windows are borderless, clean white cards that stay out of the taskbar.
+- Quick-note windows have no normal title bar, minimize button, or close button.
+- The top strip remains the full draggable hit area.
+- Three short centered grip lines near the top visually indicate the draggable area without shrinking the hit area.
+- The lower-left footer shows the current body line and character count instead of shortcut hints.
+- Quick-note titles show a grey `标题` placeholder until the user focuses the title field.
 - Blank quick-note titles are generated from the first body line.
+- `Ctrl + Enter` saves the quick note.
+- `Esc` cancels; non-empty drafts ask before discarding and no longer re-enter close logic.
+- Quick notes save through the existing local note storage.
 - Visible main windows receive saved quick notes immediately; minimized windows do not steal focus.
 
 ## Known Decisions
@@ -108,7 +117,9 @@ The app currently supports a local notes workflow:
 - No dedicated attachment manager yet.
 - Markdown task checkbox click behavior in Markdown mode is intentionally postponed.
 - Font-size controls are postponed until after the current Markdown feature review.
-- Quick-note shortcut customization and tray residency are postponed.
+- Quick-note shortcut customization is postponed until a future shortcut settings page.
+- Tray residency is postponed; closing the main window exits the app, so the global shortcut only works while QingJian is running.
+- Quick-note color selection is postponed; quick notes currently use a white background and neutral border.
 
 ## Validation Commands
 
@@ -136,15 +147,16 @@ If the app is already running, close it before building or testing to avoid `Qin
 - Use one feature branch per conversation/task.
 - Suggested branch names:
   - `feature/font-size`
-  - `feature/hotkey-note`
+  - `feature/hotkey-settings`
   - `feature/desktop-schedule`
 - Do not commit directly to `develop` during feature work.
 - Merge back to `develop` only after tests/build pass and the user accepts the behavior.
 
-Current worktree layout at the time this document was created:
+Current worktree layout at the time this document was updated:
 
 - Main workspace: `C:\Users\Cristin\Desktop\VibeCoding\qingjian`
-- Develop worktree: `C:\Users\Cristin\Desktop\VibeCoding\qingjian\.worktrees\qingjian-mvp`
+- Current branch in main workspace: `develop`
+- No active feature worktree is expected after the hotkey quick-note merge.
 
 Always confirm the current layout with:
 
@@ -164,7 +176,9 @@ Use this at the start of a new task:
 ## Suggested Next Features
 
 - Font-size controls for selected text and future typing.
-- Global hotkey to summon a quick sticky note.
+- Shortcut settings page, including changing the quick-note hotkey.
+- Tray residency, if shortcuts should keep working after the main window is closed.
+- Optional quick-note color selection.
 - Desktop transparent todo/schedule overlay.
 - Attachment cleanup or attachment manager.
 - Markdown task checkbox click support, if needed later.

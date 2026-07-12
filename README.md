@@ -14,6 +14,10 @@ QingJian is a native Windows sticky-notes app built with WPF, .NET 8, and SQLite
 While QingJian is running, press `Ctrl + Alt + N` to open a quick-note card near the mouse pointer.
 
 - Each shortcut press opens a new independent quick note.
+- Quick notes are clean white, borderless-style cards with no normal title bar buttons.
+- The top strip is draggable and has three short grip lines as a visual hint.
+- The lower-left footer shows the current line and character count.
+- Leaving the title empty uses the first body line as the saved note title.
 - `Ctrl + Enter` saves.
 - `Esc` cancels and asks before discarding non-empty content.
 - Closing the main window exits the app, so the shortcut stops working after exit.
