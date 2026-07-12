@@ -1,0 +1,122 @@
+<Window x:Class="QingJian.App.QuickNotes.QuickNoteWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Quick Note"
+        Width="420"
+        Height="320"
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Background="Transparent"
+        AllowsTransparency="True"
+        Closing="Window_OnClosing"
+        KeyDown="Window_OnKeyDown">
+    <Border Background="{StaticResource QuickNoteBackgroundBrush}"
+            BorderBrush="{StaticResource QuickNoteBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="14">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="16" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border x:Name="DragHandle"
+                    Grid.Row="0"
+                    Background="Transparent"
+                    Cursor="SizeAll"
+                    MouseLeftButtonDown="DragHandle_OnMouseLeftButtonDown">
+                <StackPanel x:Name="DragHandleGrip"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            IsHitTestVisible="False">
+                    <Border x:Name="DragHandleLineTop"
+                            Width="24"
+                            Height="1"
+                            Margin="0,0,0,3"
+                            Background="{StaticResource MutedTextBrush}"
+                            Opacity="0.5" />
+                    <Border x:Name="DragHandleLineMiddle"
+                            Width="24"
+                            Height="1"
+                            Margin="0,0,0,3"
+                            Background="{StaticResource MutedTextBrush}"
+                            Opacity="0.5" />
+                    <Border x:Name="DragHandleLineBottom"
+                            Width="24"
+                            Height="1"
+                            Background="{StaticResource MutedTextBrush}"
+                            Opacity="0.5" />
+                </StackPanel>
+            </Border>
+
+            <Grid Grid.Row="1" Margin="0,4,0,10">
+                <TextBox x:Name="TitleTextBox"
+                         FontSize="18"
+                         FontWeight="SemiBold"
+                         AcceptsReturn="False"
+                         TextWrapping="NoWrap"
+                         VerticalScrollBarVisibility="Disabled" />
+                <TextBlock Text="标题"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           IsHitTestVisible="False"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Text, ElementName=TitleTextBox}" Value="" />
+                                        <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=TitleTextBox}" Value="False" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+
+            <TextBox x:Name="BodyTextBox"
+                     Grid.Row="2"
+                     FontSize="14"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto"
+                     TextChanged="BodyTextBox_OnTextChanged" />
+
+            <TextBlock x:Name="ErrorTextBlock"
+                       Grid.Row="3"
+                       Margin="0,8,0,0"
+                       Foreground="{StaticResource QuickNoteErrorBrush}"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Visibility="Collapsed" />
+
+            <DockPanel Grid.Row="4" Margin="0,12,0,0" LastChildFill="False">
+                <TextBlock x:Name="BodyStatsTextBlock"
+                           Text="0 行 0 字"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           FontSize="12"
+                           VerticalAlignment="Center" />
+                <Button x:Name="SaveButton"
+                        Content="保存"
+                        DockPanel.Dock="Right"
+                        Margin="8,0,0,0"
+                        Click="SaveButton_OnClick" />
+                <Button x:Name="CancelButton"
+                        Content="取消"
+                        DockPanel.Dock="Right"
+                        Click="CancelButton_OnClick" />
+            </DockPanel>
+        </Grid>
+    </Border>
+</Window>

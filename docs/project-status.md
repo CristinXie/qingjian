@@ -1,6 +1,6 @@
 # QingJian Project Status
 
-Last updated: 2026-07-11
+Last updated: 2026-07-12
 Stable branch: `develop`
 Latest feature merge at update time: `547441e merge: markdown editor feature`
 
@@ -91,6 +91,13 @@ The app currently supports a local notes workflow:
   - Copy/paste clipboard screenshots/images works through native paste fallback.
   - Inserted images are copied into `%LOCALAPPDATA%\QingJian\attachments`, so notes do not depend on the original file path.
 
+### Hotkey Quick Notes
+
+- `Ctrl + Alt + N` opens a new independent quick-note window while the app is running.
+- Quick-note windows are borderless, draggable, and save through the existing local note storage.
+- Blank quick-note titles are generated from the first body line.
+- Visible main windows receive saved quick notes immediately; minimized windows do not steal focus.
+
 ## Known Decisions
 
 - Editor mode persistence is global, not per note.
@@ -101,6 +108,7 @@ The app currently supports a local notes workflow:
 - No dedicated attachment manager yet.
 - Markdown task checkbox click behavior in Markdown mode is intentionally postponed.
 - Font-size controls are postponed until after the current Markdown feature review.
+- Quick-note shortcut customization and tray residency are postponed.
 
 ## Validation Commands
 

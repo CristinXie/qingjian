@@ -9,6 +9,15 @@ QingJian is a native Windows sticky-notes app built with WPF, .NET 8, and SQLite
 - Persist notes locally with SQLite.
 - Save note edits automatically.
 
+## Quick Note Shortcut
+
+While QingJian is running, press `Ctrl + Alt + N` to open a quick-note card near the mouse pointer.
+
+- Each shortcut press opens a new independent quick note.
+- `Ctrl + Enter` saves.
+- `Esc` cancels and asks before discarding non-empty content.
+- Closing the main window exits the app, so the shortcut stops working after exit.
+
 ## Markdown Editing
 
 - Note bodies are stored as Markdown text.

@@ -151,6 +151,60 @@ public sealed class MainViewModelTests
         Assert.Contains("note-1", service.SavedIds);
     }
 
+    [Fact]
+    public void AddSavedNote_InsertsNoteAtTopAndSelectsWhenRequested()
+    {
+        var existing = CreateNote("existing", "Existing");
+        var added = CreateNote("added", "Added");
+        var service = new InMemoryNoteService(existing);
+        var viewModel = new MainViewModel(service);
+        viewModel.Notes.Add(existing);
+        viewModel.SelectedNote = existing;
+
+        viewModel.AddSavedNote(added, select: true);
+
+        Assert.Equal("added", viewModel.Notes[0].Id);
+        Assert.Same(added, viewModel.SelectedNote);
+    }
+
+    [Fact]
+    public void AddSavedNote_DoesNotSelectWhenSelectIsFalse()
+    {
+        var existing = CreateNote("existing", "Existing");
+        var added = CreateNote("added", "Added");
+        var service = new InMemoryNoteService(existing);
+        var viewModel = new MainViewModel(service);
+        viewModel.Notes.Add(existing);
+        viewModel.SelectedNote = existing;
+
+        viewModel.AddSavedNote(added, select: false);
+
+        Assert.Equal("added", viewModel.Notes[0].Id);
+        Assert.Same(existing, viewModel.SelectedNote);
+    }
+
+    [Fact]
+    public void AddSavedNote_RaisesIsEmptyChanged_WhenFirstNoteIsInserted()
+    {
+        var added = CreateNote("added", "Added");
+        var service = new InMemoryNoteService();
+        var viewModel = new MainViewModel(service);
+        var raised = false;
+
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(MainViewModel.IsEmpty))
+            {
+                raised = true;
+            }
+        };
+
+        viewModel.AddSavedNote(added, select: true);
+
+        Assert.True(raised);
+        Assert.False(viewModel.IsEmpty);
+    }
+
     private static Note CreateNote(string id, string title)
     {
         return new Note

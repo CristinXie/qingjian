@@ -32,4 +32,8 @@
         <Setter Property="TextWrapping" Value="Wrap" />
         <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
     </Style>
+
+    <SolidColorBrush x:Key="QuickNoteBackgroundBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="QuickNoteBorderBrush" Color="#DDD7CF" />
+    <SolidColorBrush x:Key="QuickNoteErrorBrush" Color="#B42318" />
 </ResourceDictionary>
