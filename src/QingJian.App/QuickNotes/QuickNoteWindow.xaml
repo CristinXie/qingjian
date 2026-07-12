@@ -77,7 +77,8 @@
                        Visibility="Collapsed" />
 
             <DockPanel Grid.Row="4" Margin="0,12,0,0" LastChildFill="False">
-                <TextBlock Text="Ctrl+Enter 保存 · Esc 取消"
+                <TextBlock x:Name="BodyStatsTextBlock"
+                           Text="0 行 0 字"
                            Foreground="{StaticResource MutedTextBrush}"
                            FontSize="12"
                            VerticalAlignment="Center" />

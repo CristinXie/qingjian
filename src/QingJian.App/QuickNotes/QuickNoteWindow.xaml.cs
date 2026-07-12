@@ -19,6 +19,7 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
         {
             PositionNearMouse();
             UpdateSaveButtonState();
+            UpdateBodyStats();
             BodyTextBox.Focus();
         };
     }
@@ -133,6 +134,7 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
     private void BodyTextBox_OnTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
         UpdateSaveButtonState();
+        UpdateBodyStats();
         ErrorTextBlock.Visibility = Visibility.Collapsed;
     }
 
@@ -187,6 +189,36 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
     private void UpdateSaveButtonState()
     {
         SaveButton.IsEnabled = !_isSaving && QuickNoteTitleGenerator.HasBody(BodyTextBox.Text);
+    }
+
+    private void UpdateBodyStats()
+    {
+        BodyStatsTextBlock.Text = FormatBodyStats(BodyTextBox.Text);
+    }
+
+    private static string FormatBodyStats(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return "0 行 0 字";
+        }
+
+        var normalizedNewlines = text.Replace("\r\n", "\n").Replace('\r', '\n');
+        var lineCount = 1;
+        var characterCount = 0;
+
+        foreach (var character in normalizedNewlines)
+        {
+            if (character == '\n')
+            {
+                lineCount++;
+                continue;
+            }
+
+            characterCount++;
+        }
+
+        return $"{lineCount} 行 {characterCount} 字";
     }
 
     private void UpdateInteractionState()

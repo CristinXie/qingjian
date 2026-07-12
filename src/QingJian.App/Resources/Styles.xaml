@@ -33,7 +33,7 @@
         <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
     </Style>
 
-    <SolidColorBrush x:Key="QuickNoteBackgroundBrush" Color="#FFF7C8" />
+    <SolidColorBrush x:Key="QuickNoteBackgroundBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="QuickNoteBorderBrush" Color="#E4C968" />
     <SolidColorBrush x:Key="QuickNoteErrorBrush" Color="#B42318" />
 </ResourceDictionary>

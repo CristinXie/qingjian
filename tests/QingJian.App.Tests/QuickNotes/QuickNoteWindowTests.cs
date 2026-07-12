@@ -8,6 +8,52 @@ namespace QingJian.App.Tests.QuickNotes;
 
 public sealed class QuickNoteWindowTests
 {
+    [Theory]
+    [InlineData("", "0 行 0 字")]
+    [InlineData("你好", "1 行 2 字")]
+    [InlineData("你好\r\n世界", "2 行 4 字")]
+    [InlineData("第一行\n", "2 行 3 字")]
+    public void FormatBodyStats_CountsLinesAndCharactersWithoutNewlineCharacters(string text, string expected)
+    {
+        var method = typeof(QuickNoteWindow).GetMethod(
+            "FormatBodyStats",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+
+        var result = Assert.IsType<string>(method!.Invoke(null, new object[] { text }));
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void Footer_ShowsBodyStatsInsteadOfShortcutHint()
+    {
+        var xaml = XDocument.Load(FindQuickNoteWindowXamlPath());
+
+        Assert.Contains(
+            xaml.Descendants(),
+            element => element.Name.LocalName == "TextBlock"
+                && (string?)FindAttributeByLocalName(element, "Name") == "BodyStatsTextBlock"
+                && (string?)element.Attribute("Text") == "0 行 0 字");
+        Assert.DoesNotContain(
+            xaml.Descendants(),
+            element => element.Name.LocalName == "TextBlock"
+                && ((string?)element.Attribute("Text"))?.Contains("Ctrl+Enter", StringComparison.Ordinal) == true);
+    }
+
+    [Fact]
+    public void QuickNoteBackground_IsPureWhite()
+    {
+        var styles = XDocument.Load(FindStylesXamlPath());
+        var quickNoteBackground = styles
+            .Descendants()
+            .Single(element => element.Name.LocalName == "SolidColorBrush"
+                && (string?)FindAttributeByLocalName(element, "Key") == "QuickNoteBackgroundBrush");
+
+        Assert.Equal("#FFFFFF", (string?)quickNoteBackground.Attribute("Color"));
+    }
+
     [Fact]
     public void TitlePlaceholder_DoesNotSetLocalVisibilityThatOverridesStyleTrigger()
     {
@@ -115,5 +161,34 @@ public sealed class QuickNoteWindowTests
         }
 
         throw new FileNotFoundException("Could not find QuickNoteWindow.xaml from test output directory.");
+    }
+
+    private static XAttribute? FindAttributeByLocalName(XElement element, string localName)
+    {
+        return element.Attributes().SingleOrDefault(attribute => attribute.Name.LocalName == localName);
+    }
+
+    private static string FindStylesXamlPath()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (directory is not null)
+        {
+            var path = Path.Combine(
+                directory.FullName,
+                "src",
+                "QingJian.App",
+                "Resources",
+                "Styles.xaml");
+
+            if (File.Exists(path))
+            {
+                return path;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException("Could not find Styles.xaml from test output directory.");
     }
 }
