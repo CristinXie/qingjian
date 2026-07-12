@@ -169,8 +169,9 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
         if (_isSaved || !QuickNoteTitleGenerator.HasBody(BodyTextBox.Text))
         {
             _allowCloseWithoutConfirmation = true;
-            Close();
         }
+
+        Close();
     }
 
     private void UpdateSaveButtonState()
