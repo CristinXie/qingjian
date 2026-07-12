@@ -43,6 +43,29 @@ public sealed class QuickNoteWindowTests
     }
 
     [Fact]
+    public void DragHandle_ShowsThreeCenteredGripLines()
+    {
+        var xaml = XDocument.Load(FindQuickNoteWindowXamlPath());
+        var dragHandle = xaml
+            .Descendants()
+            .Single(element => element.Name.LocalName == "Border"
+                && (string?)FindAttributeByLocalName(element, "Name") == "DragHandle");
+        var gripLines = dragHandle
+            .Descendants()
+            .Where(element => element.Name.LocalName == "Border"
+                && ((string?)FindAttributeByLocalName(element, "Name"))?.StartsWith("DragHandleLine", StringComparison.Ordinal) == true)
+            .ToList();
+
+        Assert.Equal("Center", (string?)dragHandle.Attribute("HorizontalAlignment"));
+        Assert.Equal(3, gripLines.Count);
+        Assert.All(gripLines, line =>
+        {
+            Assert.Equal("24", (string?)line.Attribute("Width"));
+            Assert.Equal("1", (string?)line.Attribute("Height"));
+        });
+    }
+
+    [Fact]
     public void QuickNoteBackground_IsPureWhite()
     {
         var styles = XDocument.Load(FindStylesXamlPath());

@@ -26,9 +26,34 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0"
+            <Border x:Name="DragHandle"
+                    Grid.Row="0"
+                    Padding="10,1"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
                     Background="Transparent"
-                    MouseLeftButtonDown="DragHandle_OnMouseLeftButtonDown" />
+                    Cursor="SizeAll"
+                    MouseLeftButtonDown="DragHandle_OnMouseLeftButtonDown">
+                <StackPanel>
+                    <Border x:Name="DragHandleLineTop"
+                            Width="24"
+                            Height="1"
+                            Margin="0,0,0,3"
+                            Background="{StaticResource MutedTextBrush}"
+                            Opacity="0.5" />
+                    <Border x:Name="DragHandleLineMiddle"
+                            Width="24"
+                            Height="1"
+                            Margin="0,0,0,3"
+                            Background="{StaticResource MutedTextBrush}"
+                            Opacity="0.5" />
+                    <Border x:Name="DragHandleLineBottom"
+                            Width="24"
+                            Height="1"
+                            Background="{StaticResource MutedTextBrush}"
+                            Opacity="0.5" />
+                </StackPanel>
+            </Border>
 
             <Grid Grid.Row="1" Margin="0,4,0,10">
                 <TextBox x:Name="TitleTextBox"
