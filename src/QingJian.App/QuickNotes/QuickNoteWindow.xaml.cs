@@ -105,36 +105,29 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
 
     private void Window_OnClosing(object? sender, CancelEventArgs e)
     {
-        if (_allowCloseWithoutConfirmation || _isSaved)
+        var hasBody = QuickNoteTitleGenerator.HasBody(BodyTextBox.Text);
+        var discardConfirmed = false;
+
+        if (!_allowCloseWithoutConfirmation && !_isSaved && !_isSaving && hasBody)
         {
-            return;
+            var result = MessageBox.Show(
+                this,
+                "要丢弃这条未保存的便签吗？",
+                "QingJian",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            discardConfirmed = result == MessageBoxResult.Yes;
         }
 
-        if (_isSaving)
-        {
-            e.Cancel = true;
-            return;
-        }
+        var decision = DecideClose(
+            _allowCloseWithoutConfirmation,
+            _isSaved,
+            _isSaving,
+            hasBody,
+            discardConfirmed);
 
-        if (!QuickNoteTitleGenerator.HasBody(BodyTextBox.Text))
-        {
-            return;
-        }
-
-        e.Cancel = true;
-
-        var result = MessageBox.Show(
-            this,
-            "要丢弃这条未保存的便签吗？",
-            "QingJian",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
-
-        if (result == MessageBoxResult.Yes)
-        {
-            _allowCloseWithoutConfirmation = true;
-            Close();
-        }
+        e.Cancel = decision.ShouldCancel;
+        _allowCloseWithoutConfirmation |= decision.ShouldAllowFutureClose;
     }
 
     private void BodyTextBox_OnTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
@@ -166,12 +159,29 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
             return;
         }
 
-        if (_isSaved || !QuickNoteTitleGenerator.HasBody(BodyTextBox.Text))
+        Close();
+    }
+
+    private static CloseDecision DecideClose(
+        bool allowCloseWithoutConfirmation,
+        bool isSaved,
+        bool isSaving,
+        bool hasBody,
+        bool discardConfirmed)
+    {
+        if (allowCloseWithoutConfirmation || isSaved || !hasBody)
         {
-            _allowCloseWithoutConfirmation = true;
+            return new CloseDecision(ShouldCancel: false, ShouldAllowFutureClose: true);
         }
 
-        Close();
+        if (isSaving)
+        {
+            return new CloseDecision(ShouldCancel: true, ShouldAllowFutureClose: false);
+        }
+
+        return discardConfirmed
+            ? new CloseDecision(ShouldCancel: false, ShouldAllowFutureClose: true)
+            : new CloseDecision(ShouldCancel: true, ShouldAllowFutureClose: false);
     }
 
     private void UpdateSaveButtonState()
@@ -359,6 +369,8 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
     }
 
     private readonly record struct WindowPlacement(int Left, int Top);
+
+    private readonly record struct CloseDecision(bool ShouldCancel, bool ShouldAllowFutureClose);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MONITORINFO

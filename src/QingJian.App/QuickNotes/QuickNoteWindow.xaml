@@ -19,7 +19,7 @@
             Padding="14">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="28" />
+                <RowDefinition Height="16" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
@@ -28,21 +28,38 @@
 
             <Border Grid.Row="0"
                     Background="Transparent"
-                    MouseLeftButtonDown="DragHandle_OnMouseLeftButtonDown">
-                <TextBlock Text="快速便签"
-                           Foreground="{StaticResource MutedTextBrush}"
-                           FontSize="12"
-                           VerticalAlignment="Center" />
-            </Border>
+                    MouseLeftButtonDown="DragHandle_OnMouseLeftButtonDown" />
 
-            <TextBox x:Name="TitleTextBox"
-                     Grid.Row="1"
-                     Margin="0,4,0,10"
-                     FontSize="18"
-                     FontWeight="SemiBold"
-                     AcceptsReturn="False"
-                     TextWrapping="NoWrap"
-                     VerticalScrollBarVisibility="Disabled" />
+            <Grid Grid.Row="1" Margin="0,4,0,10">
+                <TextBox x:Name="TitleTextBox"
+                         FontSize="18"
+                         FontWeight="SemiBold"
+                         AcceptsReturn="False"
+                         TextWrapping="NoWrap"
+                         VerticalScrollBarVisibility="Disabled" />
+                <TextBlock Text="标题"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           IsHitTestVisible="False"
+                           VerticalAlignment="Center"
+                           Visibility="Collapsed">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Text, ElementName=TitleTextBox}" Value="" />
+                                        <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=TitleTextBox}" Value="False" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
 
             <TextBox x:Name="BodyTextBox"
                      Grid.Row="2"

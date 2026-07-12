@@ -8,6 +8,40 @@ namespace QingJian.App.Tests.QuickNotes;
 public sealed class QuickNoteWindowTests
 {
     [Fact]
+    public void DecideClose_AllowsConfirmedDirtyDraftCloseWithoutReentrantClose()
+    {
+        var method = typeof(QuickNoteWindow).GetMethod(
+            "DecideClose",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+
+        var decision = method!.Invoke(null, new object[] { false, false, false, true, true });
+        var shouldCancel = (bool)decision!.GetType().GetProperty("ShouldCancel")!.GetValue(decision)!;
+        var shouldAllowFutureClose = (bool)decision.GetType().GetProperty("ShouldAllowFutureClose")!.GetValue(decision)!;
+
+        Assert.False(shouldCancel);
+        Assert.True(shouldAllowFutureClose);
+    }
+
+    [Fact]
+    public void DecideClose_CancelsDirtyDraftClose_WhenDiscardIsRejected()
+    {
+        var method = typeof(QuickNoteWindow).GetMethod(
+            "DecideClose",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+
+        var decision = method!.Invoke(null, new object[] { false, false, false, true, false });
+        var shouldCancel = (bool)decision!.GetType().GetProperty("ShouldCancel")!.GetValue(decision)!;
+        var shouldAllowFutureClose = (bool)decision.GetType().GetProperty("ShouldAllowFutureClose")!.GetValue(decision)!;
+
+        Assert.True(shouldCancel);
+        Assert.False(shouldAllowFutureClose);
+    }
+
+    [Fact]
     public void PixelsToDips_UsesProvidedMonitorScale()
     {
         var method = typeof(QuickNoteWindow).GetMethod(
