@@ -118,22 +118,19 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
 
     private void PositionNearMouse()
     {
-        var transformFromDevice = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice
-            ?? Matrix.Identity;
-
         if (!TryGetCursorPos(out var cursor))
         {
             CenterInWorkingArea(SystemParameters.WorkArea);
             return;
         }
 
-        if (!TryGetWorkingArea(cursor, transformFromDevice, out var workingArea))
+        if (!TryGetWorkingArea(cursor, out var workingArea, out var scaleX, out var scaleY))
         {
             CenterInWorkingArea(SystemParameters.WorkArea);
             return;
         }
 
-        var cursorDip = transformFromDevice.Transform(new Point(cursor.X, cursor.Y));
+        var cursorDip = PixelsToDips(new Point(cursor.X, cursor.Y), scaleX, scaleY);
         Left = Math.Min(Math.Max(cursorDip.X + 12, workingArea.Left), workingArea.Right - Width);
         Top = Math.Min(Math.Max(cursorDip.Y + 12, workingArea.Top), workingArea.Bottom - Height);
     }
@@ -153,12 +150,15 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO monitorInfo);
 
+    [DllImport("shcore.dll")]
+    private static extern int GetDpiForMonitor(IntPtr hmonitor, MONITOR_DPI_TYPE dpiType, out uint dpiX, out uint dpiY);
+
     private static bool TryGetCursorPos(out POINT point)
     {
         return GetCursorPos(out point);
     }
 
-    private static bool TryGetWorkingArea(POINT cursor, Matrix transformFromDevice, out Rect workingArea)
+    private static bool TryGetWorkingArea(POINT cursor, out Rect workingArea, out double scaleX, out double scaleY)
     {
         const uint monitorDefaultToNearest = 0x00000002;
         var monitor = MonitorFromPoint(cursor, monitorDefaultToNearest);
@@ -167,20 +167,51 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
             cbSize = Marshal.SizeOf<MONITORINFO>()
         };
 
-        if (monitor != IntPtr.Zero && GetMonitorInfo(monitor, ref monitorInfo))
+        if (monitor != IntPtr.Zero
+            && GetMonitorInfo(monitor, ref monitorInfo)
+            && TryGetMonitorScale(monitor, out scaleX, out scaleY))
         {
-            var topLeft = transformFromDevice.Transform(new Point(
-                monitorInfo.rcWork.Left,
-                monitorInfo.rcWork.Top));
-            var bottomRight = transformFromDevice.Transform(new Point(
-                monitorInfo.rcWork.Right,
-                monitorInfo.rcWork.Bottom));
+            var topLeft = PixelsToDips(new Point(monitorInfo.rcWork.Left, monitorInfo.rcWork.Top), scaleX, scaleY);
+            var bottomRight = PixelsToDips(new Point(monitorInfo.rcWork.Right, monitorInfo.rcWork.Bottom), scaleX, scaleY);
 
             workingArea = new Rect(topLeft, bottomRight);
             return true;
         }
 
         workingArea = Rect.Empty;
+        scaleX = 0;
+        scaleY = 0;
+        return false;
+    }
+
+    private static Point PixelsToDips(Point pixelPoint, double scaleX, double scaleY)
+    {
+        return new Point(pixelPoint.X / scaleX, pixelPoint.Y / scaleY);
+    }
+
+    private static bool TryGetMonitorScale(IntPtr monitor, out double scaleX, out double scaleY)
+    {
+        try
+        {
+            const double defaultDpi = 96d;
+            const int success = 0;
+
+            if (GetDpiForMonitor(monitor, MONITOR_DPI_TYPE.MDT_EFFECTIVE_DPI, out var dpiX, out var dpiY) == success)
+            {
+                scaleX = dpiX / defaultDpi;
+                scaleY = dpiY / defaultDpi;
+                return scaleX > 0 && scaleY > 0;
+            }
+        }
+        catch (DllNotFoundException)
+        {
+        }
+        catch (EntryPointNotFoundException)
+        {
+        }
+
+        scaleX = 0;
+        scaleY = 0;
         return false;
     }
 
@@ -207,6 +238,11 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
         public RECT rcMonitor;
         public RECT rcWork;
         public uint dwFlags;
+    }
+
+    private enum MONITOR_DPI_TYPE
+    {
+        MDT_EFFECTIVE_DPI = 0
     }
 }
 
