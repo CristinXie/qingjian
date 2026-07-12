@@ -46,12 +46,18 @@ public sealed class QuickNoteWindowTests
     public void QuickNoteBackground_IsPureWhite()
     {
         var styles = XDocument.Load(FindStylesXamlPath());
-        var quickNoteBackground = styles
-            .Descendants()
-            .Single(element => element.Name.LocalName == "SolidColorBrush"
-                && (string?)FindAttributeByLocalName(element, "Key") == "QuickNoteBackgroundBrush");
+        var quickNoteBackground = FindSolidColorBrush(styles, "QuickNoteBackgroundBrush");
 
         Assert.Equal("#FFFFFF", (string?)quickNoteBackground.Attribute("Color"));
+    }
+
+    [Fact]
+    public void QuickNoteBorder_UsesNeutralBorderColor()
+    {
+        var styles = XDocument.Load(FindStylesXamlPath());
+        var quickNoteBorder = FindSolidColorBrush(styles, "QuickNoteBorderBrush");
+
+        Assert.Equal("#DDD7CF", (string?)quickNoteBorder.Attribute("Color"));
     }
 
     [Fact]
@@ -166,6 +172,14 @@ public sealed class QuickNoteWindowTests
     private static XAttribute? FindAttributeByLocalName(XElement element, string localName)
     {
         return element.Attributes().SingleOrDefault(attribute => attribute.Name.LocalName == localName);
+    }
+
+    private static XElement FindSolidColorBrush(XDocument document, string key)
+    {
+        return document
+            .Descendants()
+            .Single(element => element.Name.LocalName == "SolidColorBrush"
+                && (string?)FindAttributeByLocalName(element, "Key") == key);
     }
 
     private static string FindStylesXamlPath()
