@@ -28,13 +28,13 @@
 
             <Border x:Name="DragHandle"
                     Grid.Row="0"
-                    Padding="10,1"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
                     Background="Transparent"
                     Cursor="SizeAll"
                     MouseLeftButtonDown="DragHandle_OnMouseLeftButtonDown">
-                <StackPanel>
+                <StackPanel x:Name="DragHandleGrip"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            IsHitTestVisible="False">
                     <Border x:Name="DragHandleLineTop"
                             Width="24"
                             Height="1"

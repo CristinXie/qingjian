@@ -43,20 +43,26 @@ public sealed class QuickNoteWindowTests
     }
 
     [Fact]
-    public void DragHandle_ShowsThreeCenteredGripLines()
+    public void DragHandle_KeepsOriginalHitAreaAndShowsCenteredGripLines()
     {
         var xaml = XDocument.Load(FindQuickNoteWindowXamlPath());
         var dragHandle = xaml
             .Descendants()
             .Single(element => element.Name.LocalName == "Border"
                 && (string?)FindAttributeByLocalName(element, "Name") == "DragHandle");
+        var grip = dragHandle
+            .Descendants()
+            .Single(element => element.Name.LocalName == "StackPanel"
+                && (string?)FindAttributeByLocalName(element, "Name") == "DragHandleGrip");
         var gripLines = dragHandle
             .Descendants()
             .Where(element => element.Name.LocalName == "Border"
                 && ((string?)FindAttributeByLocalName(element, "Name"))?.StartsWith("DragHandleLine", StringComparison.Ordinal) == true)
             .ToList();
 
-        Assert.Equal("Center", (string?)dragHandle.Attribute("HorizontalAlignment"));
+        Assert.Null(dragHandle.Attribute("HorizontalAlignment"));
+        Assert.Equal("DragHandle_OnMouseLeftButtonDown", (string?)dragHandle.Attribute("MouseLeftButtonDown"));
+        Assert.Equal("Center", (string?)grip.Attribute("HorizontalAlignment"));
         Assert.Equal(3, gripLines.Count);
         Assert.All(gripLines, line =>
         {
