@@ -6,6 +6,10 @@ public interface IQuickNoteWindow
 
     void ShowWindow();
 
+    bool TryBeginSave();
+
+    void CompleteSave(bool succeeded);
+
     void CloseWindow();
 
     void ShowSaveError(string message);

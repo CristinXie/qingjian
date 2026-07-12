@@ -97,6 +97,35 @@ public sealed class QuickNoteCoordinatorTests
         Assert.Equal(new[] { "note-1" }, service.DeletedIds);
         Assert.Empty(service.ActiveNotes);
         Assert.Empty(service.SavedNotes);
+        Assert.False(service.DeleteCancellationWasRequested);
+    }
+
+    [Fact]
+    public async Task OpenQuickNote_IgnoresRepeatedSaveRequestsWhileSaveIsInFlight()
+    {
+        var service = new InMemoryNoteService
+        {
+            SaveDelay = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var viewModel = new MainViewModel(service);
+        var factory = new TestWindowFactory();
+        var coordinator = new QuickNoteCoordinator(service, viewModel, factory, () => true);
+
+        coordinator.OpenQuickNote();
+        var window = Assert.Single(factory.Windows);
+
+        window.RequestSave(new QuickNoteDraft("Title", "Body"));
+        window.RequestSave(new QuickNoteDraft("Title", "Body"));
+
+        Assert.True(window.IsSaving);
+        Assert.Equal(1, service.SaveCallCount);
+        Assert.False(window.WasClosed);
+
+        service.SaveDelay.SetResult(true);
+        await window.WaitForCloseAsync();
+
+        Assert.Single(service.SavedNotes);
+        Assert.Single(viewModel.Notes);
     }
 
     [Fact]
@@ -169,6 +198,12 @@ public sealed class QuickNoteCoordinatorTests
 
         public Exception? SaveException { get; init; }
 
+        public TaskCompletionSource<bool>? SaveDelay { get; init; }
+
+        public int SaveCallCount { get; private set; }
+
+        public bool DeleteCancellationWasRequested { get; private set; }
+
         public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task<IReadOnlyList<Note>> GetActiveNotesAsync(CancellationToken cancellationToken = default)
@@ -193,6 +228,13 @@ public sealed class QuickNoteCoordinatorTests
 
         public Task SaveNoteAsync(Note note, CancellationToken cancellationToken = default)
         {
+            SaveCallCount++;
+
+            if (SaveDelay is not null)
+            {
+                return SaveWithDelayAsync(note, cancellationToken);
+            }
+
             if (SaveException is not null)
             {
                 throw SaveException;
@@ -202,8 +244,21 @@ public sealed class QuickNoteCoordinatorTests
             return Task.CompletedTask;
         }
 
+        private async Task SaveWithDelayAsync(Note note, CancellationToken cancellationToken)
+        {
+            await SaveDelay!.Task.WaitAsync(cancellationToken);
+
+            if (SaveException is not null)
+            {
+                throw SaveException;
+            }
+
+            SavedNotes.Add(note);
+        }
+
         public Task DeleteNoteAsync(Note note, CancellationToken cancellationToken = default)
         {
+            DeleteCancellationWasRequested = cancellationToken.IsCancellationRequested;
             DeletedIds.Add(note.Id);
             _notes.Remove(note);
             note.IsDeleted = true;
@@ -231,6 +286,8 @@ public sealed class QuickNoteCoordinatorTests
 
         public bool WasClosed { get; private set; }
 
+        public bool IsSaving { get; private set; }
+
         public string? LastSaveError { get; private set; }
 
         private TaskCompletionSource<bool> CloseSignal { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -242,15 +299,36 @@ public sealed class QuickNoteCoordinatorTests
             WasShown = true;
         }
 
+        public bool TryBeginSave()
+        {
+            if (IsSaving)
+            {
+                return false;
+            }
+
+            IsSaving = true;
+            return true;
+        }
+
+        public void CompleteSave(bool succeeded)
+        {
+            if (!succeeded)
+            {
+                IsSaving = false;
+            }
+        }
+
         public void CloseWindow()
         {
             WasClosed = true;
+            IsSaving = false;
             CloseSignal.TrySetResult(true);
         }
 
         public void ShowSaveError(string message)
         {
             LastSaveError = message;
+            IsSaving = false;
             ErrorSignal.TrySetResult(message);
         }
 

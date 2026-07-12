@@ -1,13 +1,16 @@
 using System.Windows;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Runtime.InteropServices;
+using System.ComponentModel;
+using System.Windows.Interop;
 
 namespace QingJian.App.QuickNotes;
 
 public partial class QuickNoteWindow : Window, IQuickNoteWindow
 {
     private bool _isSaved;
+    private bool _isSaving;
+    private bool _allowCloseWithoutConfirmation;
 
     public QuickNoteWindow()
     {
@@ -27,9 +30,36 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
         Show();
     }
 
+    public bool TryBeginSave()
+    {
+        if (_isSaving)
+        {
+            return false;
+        }
+
+        _isSaving = true;
+        ErrorTextBlock.Visibility = Visibility.Collapsed;
+        UpdateInteractionState();
+        return true;
+    }
+
+    public void CompleteSave(bool succeeded)
+    {
+        _isSaving = false;
+        if (succeeded)
+        {
+            _isSaved = true;
+            _allowCloseWithoutConfirmation = true;
+            return;
+        }
+
+        UpdateInteractionState();
+    }
+
     public void CloseWindow()
     {
         _isSaved = true;
+        _allowCloseWithoutConfirmation = true;
         Close();
     }
 
@@ -54,7 +84,7 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
 
     private void CancelButton_OnClick(object sender, RoutedEventArgs e)
     {
-        RequestCancel();
+        AttemptUserClose();
     }
 
     private void Window_OnKeyDown(object sender, KeyEventArgs e)
@@ -68,8 +98,42 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
 
         if (e.Key == Key.Escape)
         {
-            RequestCancel();
+            AttemptUserClose();
             e.Handled = true;
+        }
+    }
+
+    private void Window_OnClosing(object? sender, CancelEventArgs e)
+    {
+        if (_allowCloseWithoutConfirmation || _isSaved)
+        {
+            return;
+        }
+
+        if (_isSaving)
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        if (!QuickNoteTitleGenerator.HasBody(BodyTextBox.Text))
+        {
+            return;
+        }
+
+        e.Cancel = true;
+
+        var result = MessageBox.Show(
+            this,
+            "要丢弃这条未保存的便签吗？",
+            "QingJian",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            _allowCloseWithoutConfirmation = true;
+            Close();
         }
     }
 
@@ -81,6 +145,11 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
 
     private void RequestSave()
     {
+        if (_isSaving)
+        {
+            return;
+        }
+
         if (!QuickNoteTitleGenerator.HasBody(BodyTextBox.Text))
         {
             ShowSaveError("请输入便签内容。");
@@ -90,30 +159,31 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
         SaveRequested?.Invoke(this, new QuickNoteDraft(TitleTextBox.Text, BodyTextBox.Text));
     }
 
-    private void RequestCancel()
+    private void AttemptUserClose()
     {
-        if (_isSaved || !QuickNoteTitleGenerator.HasBody(BodyTextBox.Text))
+        if (_isSaving)
         {
-            Close();
             return;
         }
 
-        var result = MessageBox.Show(
-            this,
-            "要丢弃这条未保存的便签吗？",
-            "QingJian",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
-
-        if (result == MessageBoxResult.Yes)
+        if (_isSaved || !QuickNoteTitleGenerator.HasBody(BodyTextBox.Text))
         {
+            _allowCloseWithoutConfirmation = true;
             Close();
         }
     }
 
     private void UpdateSaveButtonState()
     {
-        SaveButton.IsEnabled = QuickNoteTitleGenerator.HasBody(BodyTextBox.Text);
+        SaveButton.IsEnabled = !_isSaving && QuickNoteTitleGenerator.HasBody(BodyTextBox.Text);
+    }
+
+    private void UpdateInteractionState()
+    {
+        TitleTextBox.IsEnabled = !_isSaving;
+        BodyTextBox.IsEnabled = !_isSaving;
+        CancelButton.IsEnabled = !_isSaving;
+        UpdateSaveButtonState();
     }
 
     private void PositionNearMouse()
@@ -130,9 +200,8 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
             return;
         }
 
-        var cursorDip = PixelsToDips(new Point(cursor.X, cursor.Y), scaleX, scaleY);
-        Left = Math.Min(Math.Max(cursorDip.X + 12, workingArea.Left), workingArea.Right - Width);
-        Top = Math.Min(Math.Max(cursorDip.Y + 12, workingArea.Top), workingArea.Bottom - Height);
+        var placement = CalculateWindowPlacement(cursor, workingArea, scaleX, scaleY, ActualWidth > 0 ? ActualWidth : Width, ActualHeight > 0 ? ActualHeight : Height);
+        ApplyPixelPlacement(placement);
     }
 
     private void CenterInWorkingArea(Rect workingArea)
@@ -149,6 +218,9 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO monitorInfo);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
 
     [DllImport("shcore.dll")]
     private static extern int GetDpiForMonitor(IntPtr hmonitor, MONITOR_DPI_TYPE dpiType, out uint dpiX, out uint dpiY);
@@ -184,9 +256,63 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
         return false;
     }
 
+    private static WindowPlacement CalculateWindowPlacement(
+        POINT cursor,
+        Rect workingArea,
+        double scaleX,
+        double scaleY,
+        double windowWidthDip,
+        double windowHeightDip)
+    {
+        var widthPixels = Math.Max(0, (int)Math.Round(windowWidthDip * scaleX));
+        var heightPixels = Math.Max(0, (int)Math.Round(windowHeightDip * scaleY));
+        var workingAreaPixels = DipsToPixels(workingArea, scaleX, scaleY);
+
+        var left = Clamp(cursor.X + 12, workingAreaPixels.Left, workingAreaPixels.Right - widthPixels);
+        var top = Clamp(cursor.Y + 12, workingAreaPixels.Top, workingAreaPixels.Bottom - heightPixels);
+
+        return new WindowPlacement(left, top);
+    }
+
+    private void ApplyPixelPlacement(WindowPlacement placement)
+    {
+        var handle = new WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        const uint noSize = 0x0001;
+        const uint noZOrder = 0x0004;
+        const uint noActivate = 0x0010;
+
+        SetWindowPos(handle, IntPtr.Zero, placement.Left, placement.Top, 0, 0, noSize | noZOrder | noActivate);
+    }
+
     private static Point PixelsToDips(Point pixelPoint, double scaleX, double scaleY)
     {
         return new Point(pixelPoint.X / scaleX, pixelPoint.Y / scaleY);
+    }
+
+    private static RECT DipsToPixels(Rect dipRect, double scaleX, double scaleY)
+    {
+        return new RECT
+        {
+            Left = (int)Math.Round(dipRect.Left * scaleX),
+            Top = (int)Math.Round(dipRect.Top * scaleY),
+            Right = (int)Math.Round(dipRect.Right * scaleX),
+            Bottom = (int)Math.Round(dipRect.Bottom * scaleY)
+        };
+    }
+
+    private static int Clamp(int value, int min, int max)
+    {
+        if (max < min)
+        {
+            return min;
+        }
+
+        return Math.Min(Math.Max(value, min), max);
     }
 
     private static bool TryGetMonitorScale(IntPtr monitor, out double scaleX, out double scaleY)
@@ -230,6 +356,8 @@ public partial class QuickNoteWindow : Window, IQuickNoteWindow
         public int Right;
         public int Bottom;
     }
+
+    private readonly record struct WindowPlacement(int Left, int Top);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MONITORINFO

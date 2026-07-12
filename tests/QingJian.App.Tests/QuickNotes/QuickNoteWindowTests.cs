@@ -21,4 +21,29 @@ public sealed class QuickNoteWindowTests
         Assert.Equal(192, result.X);
         Assert.Equal(144, result.Y);
     }
+
+    [Fact]
+    public void CalculateWindowPlacement_UsesMonitorRelativePixelsWithoutShiftingAcrossDisplays()
+    {
+        var pointType = typeof(QuickNoteWindow).GetNestedType("POINT", BindingFlags.NonPublic);
+        var placementType = typeof(QuickNoteWindow).GetNestedType("WindowPlacement", BindingFlags.NonPublic);
+        var method = typeof(QuickNoteWindow).GetMethod(
+            "CalculateWindowPlacement",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(pointType);
+        Assert.NotNull(placementType);
+        Assert.NotNull(method);
+
+        var cursor = Activator.CreateInstance(pointType!);
+        pointType!.GetField("X")!.SetValue(cursor, 2220);
+        pointType.GetField("Y")!.SetValue(cursor, 300);
+
+        var workingArea = new Rect(1280, 0, 1280, 720);
+        var placement = method!.Invoke(null, new object[] { cursor!, workingArea, 1.5d, 1.5d, 420d, 320d });
+
+        Assert.NotNull(placement);
+        Assert.Equal(2232, (int)placementType!.GetProperty("Left")!.GetValue(placement)!);
+        Assert.Equal(312, (int)placementType.GetProperty("Top")!.GetValue(placement)!);
+    }
 }

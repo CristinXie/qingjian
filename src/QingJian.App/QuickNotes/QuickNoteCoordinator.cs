@@ -50,7 +50,7 @@ public sealed class QuickNoteCoordinator
         }
         catch
         {
-            await _noteService.DeleteNoteAsync(note, cancellationToken);
+            await _noteService.DeleteNoteAsync(note, CancellationToken.None);
             throw;
         }
 
@@ -69,19 +69,27 @@ public sealed class QuickNoteCoordinator
             return;
         }
 
+        if (!window.TryBeginSave())
+        {
+            return;
+        }
+
         try
         {
             var result = await SaveDraftAsync(draft, _shouldSyncToMainWindow());
             if (result.Succeeded)
             {
+                window.CompleteSave(succeeded: true);
                 window.CloseWindow();
                 return;
             }
 
+            window.CompleteSave(succeeded: false);
             window.ShowSaveError(result.ErrorMessage ?? "保存失败。");
         }
         catch (Exception ex)
         {
+            window.CompleteSave(succeeded: false);
             window.ShowSaveError($"保存失败：{ex.Message}");
         }
     }

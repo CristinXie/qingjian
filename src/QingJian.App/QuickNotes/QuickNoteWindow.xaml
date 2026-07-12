@@ -10,6 +10,7 @@
         Topmost="True"
         Background="Transparent"
         AllowsTransparency="True"
+        Closing="Window_OnClosing"
         KeyDown="Window_OnKeyDown">
     <Border Background="{StaticResource QuickNoteBackgroundBrush}"
             BorderBrush="{StaticResource QuickNoteBorderBrush}"
@@ -69,7 +70,8 @@
                         DockPanel.Dock="Right"
                         Margin="8,0,0,0"
                         Click="SaveButton_OnClick" />
-                <Button Content="取消"
+                <Button x:Name="CancelButton"
+                        Content="取消"
                         DockPanel.Dock="Right"
                         Click="CancelButton_OnClick" />
             </DockPanel>
