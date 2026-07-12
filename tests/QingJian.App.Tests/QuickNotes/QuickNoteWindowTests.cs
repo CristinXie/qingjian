@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Windows;
+using System.Xml.Linq;
 using QingJian.App.QuickNotes;
 using Xunit;
 
@@ -7,6 +8,17 @@ namespace QingJian.App.Tests.QuickNotes;
 
 public sealed class QuickNoteWindowTests
 {
+    [Fact]
+    public void TitlePlaceholder_DoesNotSetLocalVisibilityThatOverridesStyleTrigger()
+    {
+        var xaml = XDocument.Load(FindQuickNoteWindowXamlPath());
+        var placeholder = xaml
+            .Descendants()
+            .Single(element => element.Name.LocalName == "TextBlock" && (string?)element.Attribute("Text") == "标题");
+
+        Assert.Null(placeholder.Attribute("Visibility"));
+    }
+
     [Fact]
     public void DecideClose_AllowsConfirmedDirtyDraftCloseWithoutReentrantClose()
     {
@@ -79,5 +91,29 @@ public sealed class QuickNoteWindowTests
         Assert.NotNull(placement);
         Assert.Equal(2232, (int)placementType!.GetProperty("Left")!.GetValue(placement)!);
         Assert.Equal(312, (int)placementType.GetProperty("Top")!.GetValue(placement)!);
+    }
+
+    private static string FindQuickNoteWindowXamlPath()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (directory is not null)
+        {
+            var path = Path.Combine(
+                directory.FullName,
+                "src",
+                "QingJian.App",
+                "QuickNotes",
+                "QuickNoteWindow.xaml");
+
+            if (File.Exists(path))
+            {
+                return path;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException("Could not find QuickNoteWindow.xaml from test output directory.");
     }
 }
