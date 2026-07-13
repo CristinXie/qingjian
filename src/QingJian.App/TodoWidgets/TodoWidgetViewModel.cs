@@ -106,6 +106,8 @@ public sealed class TodoWidgetViewModel : ViewModelBase
         {
             VisibleTodos.Add(todo);
         }
+
+        OnPropertyChanged(nameof(VisibleTodos));
     }
 
     public async Task CreateTodoAsync(TodoDraft draft, CancellationToken cancellationToken = default)
@@ -218,7 +220,7 @@ public sealed class TodoWidgetViewModel : ViewModelBase
         {
             TodoWidgetMode.EightDay => (EightDayDates[0], EightDayDates[^1]),
             TodoWidgetMode.Today => (_todayProvider(), _todayProvider()),
-            TodoWidgetMode.Calendar => (CalendarMonth, CalendarMonth.AddMonths(1).AddDays(-1)),
+            TodoWidgetMode.Calendar => (CalendarDates[0], CalendarDates[^1]),
             _ => (_todayProvider(), _todayProvider())
         };
     }

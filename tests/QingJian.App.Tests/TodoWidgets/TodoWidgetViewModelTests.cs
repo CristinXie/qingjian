@@ -36,7 +36,7 @@ public sealed class TodoWidgetViewModelTests
     }
 
     [Fact]
-    public async Task CalendarNavigation_LoadsSelectedMonthAndReturnsToCurrentMonth()
+    public async Task CalendarNavigation_LoadsVisibleCalendarGridAndReturnsToCurrentMonth()
     {
         var today = new DateOnly(2026, 7, 13);
         var service = new InMemoryTodoService();
@@ -48,12 +48,26 @@ public sealed class TodoWidgetViewModelTests
         viewModel.ShowNextMonth();
         await viewModel.LoadAsync();
         Assert.Equal(8, viewModel.CalendarMonth.Month);
-        Assert.Equal(new DateOnly(2026, 8, 1), service.LastRange.From);
-        Assert.Equal(new DateOnly(2026, 8, 31), service.LastRange.To);
+        Assert.Equal(new DateOnly(2026, 7, 27), service.LastRange.From);
+        Assert.Equal(new DateOnly(2026, 9, 6), service.LastRange.To);
 
         viewModel.ReturnToCurrentMonth();
         await viewModel.LoadAsync();
         Assert.Equal(7, viewModel.CalendarMonth.Month);
+    }
+
+    [Fact]
+    public async Task LoadAsync_NotifiesVisibleTodosAfterReload()
+    {
+        var today = new DateOnly(2026, 7, 13);
+        var service = new InMemoryTodoService();
+        var viewModel = new TodoWidgetViewModel(service, TodoWidgetPreferences.Default, () => today);
+        var changedProperties = new List<string?>();
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+
+        await viewModel.LoadAsync();
+
+        Assert.Contains(nameof(TodoWidgetViewModel.VisibleTodos), changedProperties);
     }
 
     [Fact]
