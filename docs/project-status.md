@@ -1,6 +1,6 @@
 # QingJian Project Status
 
-Last updated: 2026-07-12
+Last updated: 2026-07-14
 Stable branch: `develop`
 Latest feature merge at update time: `b77f5f1 merge: hotkey quick note feature`
 
@@ -32,9 +32,11 @@ The app currently supports a local notes workflow:
 - `src/QingJian.App/Data/`
   - EF Core `AppDbContext`.
   - `NoteRepository` for note persistence.
+  - `TodoRepository` for independent todo persistence.
 
 - `src/QingJian.App/Services/`
   - `NoteService`: note creation, update, soft delete behavior.
+  - `TodoService`: todo creation, update, completion, deletion, and date/time ordering.
   - `AppSettingsService`: JSON settings stored in `%LOCALAPPDATA%\QingJian\settings.json`.
   - `AttachmentService`: local image attachment storage under `%LOCALAPPDATA%\QingJian\attachments`.
 
@@ -43,6 +45,9 @@ The app currently supports a local notes workflow:
 
 - `src/QingJian.App/Views/`
   - `MainWindow.xaml` and `MainWindow.xaml.cs` host the primary UI and bridge WPF with the WebView2 Markdown editor.
+
+- `src/QingJian.App/TodoWidgets/`
+  - Desktop todo widget coordinator, desktop-layer attachment helper, widget view model, converters, and WPF window.
 
 - `src/QingJian.App/Editor/`
   - `EditorMessage`: parses messages posted from the WebView editor.
@@ -107,6 +112,18 @@ The app currently supports a local notes workflow:
 - Quick notes save through the existing local note storage.
 - Visible main windows receive saved quick notes immediately; minimized windows do not steal focus.
 
+### Desktop Todo Widget
+
+- Todos are stored independently from notes in `TodoItems`.
+- QingJian shows a semi-transparent desktop todo widget by default on first launch after the feature is installed.
+- The main window can show or hide the widget.
+- The widget supports 8-day, today-list, and monthly-calendar presets.
+- The 8-day preset starts from yesterday and covers 8 consecutive days.
+- The monthly-calendar preset supports previous month, next month, and return to current month.
+- Widget editing supports add, edit, complete, delete, no-time todos, single-time todos, and time-range todos.
+- Completed todos remain visible and move to the bottom of their day.
+- Widget visibility, mode, position, opacity, lock state, and calendar month are persisted in settings.
+
 ## Known Decisions
 
 - Editor mode persistence is global, not per note.
@@ -120,6 +137,10 @@ The app currently supports a local notes workflow:
 - Quick-note shortcut customization is postponed until a future shortcut settings page.
 - Tray residency is postponed; closing the main window exits the app, so the global shortcut only works while QingJian is running.
 - Quick-note color selection is postponed; quick notes currently use a white background and neutral border.
+- Desktop todo reminders and notifications are postponed.
+- Repeating todos and cross-day todos are postponed.
+- Desktop todo size presets are postponed; first version uses a fixed widget size.
+- A full main-window todo management page is postponed; first version edits todos from the widget.
 
 ## Validation Commands
 
@@ -155,8 +176,8 @@ If the app is already running, close it before building or testing to avoid `Qin
 Current worktree layout at the time this document was updated:
 
 - Main workspace: `C:\Users\Cristin\Desktop\VibeCoding\qingjian`
-- Current branch in main workspace: `develop`
-- No active feature worktree is expected after the hotkey quick-note merge.
+- Current branch in main workspace: `feature/desktop-todo-widget`
+- Active feature work is the desktop todo widget branch until it is merged back to `develop`.
 
 Always confirm the current layout with:
 
@@ -179,7 +200,6 @@ Use this at the start of a new task:
 - Shortcut settings page, including changing the quick-note hotkey.
 - Tray residency, if shortcuts should keep working after the main window is closed.
 - Optional quick-note color selection.
-- Desktop transparent todo/schedule overlay.
 - Attachment cleanup or attachment manager.
 - Markdown task checkbox click support, if needed later.
 
