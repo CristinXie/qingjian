@@ -87,7 +87,7 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <CheckBox Content="{Binding Text}"
-                                                          IsChecked="{Binding IsCompleted}"
+                                                          IsChecked="{Binding IsCompleted, Mode=OneWay}"
                                                           Tag="{Binding}"
                                                           Click="QuickCompleteTodoCheckBox_OnClick"
                                                           FontSize="11" />
@@ -123,7 +123,7 @@
                                            Foreground="{StaticResource MutedTextBrush}"
                                            Text="{Binding StartTime}" />
                                 <CheckBox Content="{Binding Text}"
-                                          IsChecked="{Binding IsCompleted}"
+                                          IsChecked="{Binding IsCompleted, Mode=OneWay}"
                                           Tag="{Binding}"
                                           Click="QuickCompleteTodoCheckBox_OnClick" />
                             </DockPanel>
