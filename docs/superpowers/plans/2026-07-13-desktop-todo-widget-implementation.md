@@ -1886,11 +1886,13 @@ Do not commit this task until Task 6 adds `TodoWidgetWindow` and build succeeds.
 **Files:**
 - Create: `src/QingJian.App/TodoWidgets/TodoWidgetWindow.xaml`
 - Create: `src/QingJian.App/TodoWidgets/TodoWidgetWindow.xaml.cs`
+- Create: `src/QingJian.App/TodoWidgets/TodoItemsForDateConverter.cs`
 - Modify: `src/QingJian.App/Resources/Styles.xaml`
 
 **Interfaces:**
 - Consumes: `TodoWidgetViewModel`, `DesktopLayerService`, `TodoWidgetCoordinator`.
 - Produces: a fixed-size WPF widget window with three preset views and edit popover controls.
+- Produces: `TodoItemsForDateConverter`, which filters the shared visible todo list for one date in date-based cells.
 
 - [ ] **Step 1: Add widget styles**
 
@@ -1908,6 +1910,36 @@ Append these resources to `src/QingJian.App/Resources/Styles.xaml` before `</Res
 ```
 
 - [ ] **Step 2: Add widget XAML**
+
+Create `src/QingJian.App/TodoWidgets/TodoItemsForDateConverter.cs`:
+
+```csharp
+using System.Globalization;
+using System.Windows.Data;
+using QingJian.App.Models;
+
+namespace QingJian.App.TodoWidgets;
+
+public sealed class TodoItemsForDateConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (values.Length < 2 ||
+            values[0] is not DateOnly date ||
+            values[1] is not IEnumerable<TodoItem> todos)
+        {
+            return Array.Empty<TodoItem>();
+        }
+
+        return todos.Where(todo => todo.Date == date).ToList();
+    }
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+}
+```
 
 Create `src/QingJian.App/TodoWidgets/TodoWidgetWindow.xaml`:
 
@@ -1928,6 +1960,9 @@ Create `src/QingJian.App/TodoWidgets/TodoWidgetWindow.xaml`:
         MouseLeave="Window_OnMouseLeave"
         SourceInitialized="Window_OnSourceInitialized"
         Closing="Window_OnClosing">
+    <Window.Resources>
+        <todo:TodoItemsForDateConverter x:Key="TodoItemsForDateConverter" />
+    </Window.Resources>
     <Border x:Name="RootBorder"
             Background="{StaticResource TodoWidgetBackgroundBrush}"
             BorderBrush="{StaticResource TodoWidgetBorderBrush}"
@@ -1987,11 +2022,20 @@ Create `src/QingJian.App/TodoWidgets/TodoWidgetWindow.xaml`:
                                 <StackPanel>
                                     <TextBlock Text="{Binding StringFormat={}{0:MM/dd}}"
                                                FontWeight="SemiBold" />
-                                    <ItemsControl ItemsSource="{Binding DataContext.VisibleTodos, RelativeSource={RelativeSource AncestorType=Window}}">
+                                    <ItemsControl>
+                                        <ItemsControl.ItemsSource>
+                                            <MultiBinding Converter="{StaticResource TodoItemsForDateConverter}">
+                                                <Binding />
+                                                <Binding Path="DataContext.VisibleTodos"
+                                                         RelativeSource="{RelativeSource AncestorType=Window}" />
+                                            </MultiBinding>
+                                        </ItemsControl.ItemsSource>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <CheckBox Content="{Binding Text}"
                                                           IsChecked="{Binding IsCompleted}"
+                                                          Tag="{Binding}"
+                                                          Click="QuickCompleteTodoCheckBox_OnClick"
                                                           FontSize="11" />
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
@@ -2025,7 +2069,9 @@ Create `src/QingJian.App/TodoWidgets/TodoWidgetWindow.xaml`:
                                            Foreground="{StaticResource MutedTextBrush}"
                                            Text="{Binding StartTime}" />
                                 <CheckBox Content="{Binding Text}"
-                                          IsChecked="{Binding IsCompleted}" />
+                                          IsChecked="{Binding IsCompleted}"
+                                          Tag="{Binding}"
+                                          Click="QuickCompleteTodoCheckBox_OnClick" />
                             </DockPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -2091,6 +2137,7 @@ Create `src/QingJian.App/TodoWidgets/TodoWidgetWindow.xaml.cs`:
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
+using QingJian.App.Models;
 
 namespace QingJian.App.TodoWidgets;
 
@@ -2208,6 +2255,16 @@ public partial class TodoWidgetWindow : Window
         }
     }
 
+    private async void QuickCompleteTodoCheckBox_OnClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not TodoItem todo)
+        {
+            return;
+        }
+
+        await _viewModel.SetCompletedAsync(todo, !todo.IsCompleted);
+    }
+
     private void HideButton_OnClick(object sender, RoutedEventArgs e)
     {
         _isHidingFromButton = true;
@@ -2242,7 +2299,7 @@ Expected: build succeeds.
 Run:
 
 ```powershell
-git add src\QingJian.App\TodoWidgets\DesktopLayerService.cs src\QingJian.App\TodoWidgets\TodoWidgetCoordinator.cs src\QingJian.App\TodoWidgets\TodoWidgetWindow.xaml src\QingJian.App\TodoWidgets\TodoWidgetWindow.xaml.cs src\QingJian.App\Resources\Styles.xaml
+git add src\QingJian.App\TodoWidgets\DesktopLayerService.cs src\QingJian.App\TodoWidgets\TodoWidgetCoordinator.cs src\QingJian.App\TodoWidgets\TodoItemsForDateConverter.cs src\QingJian.App\TodoWidgets\TodoWidgetWindow.xaml src\QingJian.App\TodoWidgets\TodoWidgetWindow.xaml.cs src\QingJian.App\Resources\Styles.xaml
 git commit -m "feat: add desktop todo widget shell"
 ```
 
