@@ -1,0 +1,183 @@
+<Window x:Class="QingJian.App.TodoWidgets.TodoWidgetWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:todo="clr-namespace:QingJian.App.TodoWidgets"
+        Title="QingJian Todo Widget"
+        Width="520"
+        Height="360"
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        ShowInTaskbar="False"
+        AllowsTransparency="True"
+        Background="Transparent"
+        MouseEnter="Window_OnMouseEnter"
+        MouseLeave="Window_OnMouseLeave"
+        SourceInitialized="Window_OnSourceInitialized"
+        Closing="Window_OnClosing">
+    <Window.Resources>
+        <todo:TodoItemsForDateConverter x:Key="TodoItemsForDateConverter" />
+    </Window.Resources>
+    <Border x:Name="RootBorder"
+            Background="{StaticResource TodoWidgetBackgroundBrush}"
+            BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Opacity="{Binding Opacity}"
+            Padding="10">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="32" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <DockPanel Grid.Row="0"
+                       MouseLeftButtonDown="DragHandle_OnMouseLeftButtonDown">
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="8日" Click="EightDayButton_OnClick" />
+                    <Button Content="今日" Margin="6,0,0,0" Click="TodayButton_OnClick" />
+                    <Button Content="日历" Margin="6,0,0,0" Click="CalendarButton_OnClick" />
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <CheckBox Content="锁定"
+                              IsChecked="{Binding IsLocked, Mode=TwoWay}"
+                              VerticalAlignment="Center"
+                              Margin="0,0,8,0" />
+                    <Button Content="隐藏" Click="HideButton_OnClick" />
+                </StackPanel>
+            </DockPanel>
+
+            <Grid Grid.Row="1">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Mode}" Value="{x:Static todo:TodoWidgetMode.EightDay}">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <ItemsControl ItemsSource="{Binding EightDayDates}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Rows="2" Columns="4" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="4"
+                                    Padding="7"
+                                    BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    MouseEnter="DateCell_OnMouseEnter"
+                                    MouseLeave="DateCell_OnMouseLeave"
+                                    MouseLeftButtonDown="DateCell_OnMouseLeftButtonDown">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding StringFormat={}{0:MM/dd}}"
+                                               FontWeight="SemiBold" />
+                                    <ItemsControl>
+                                        <ItemsControl.ItemsSource>
+                                            <MultiBinding Converter="{StaticResource TodoItemsForDateConverter}">
+                                                <Binding />
+                                                <Binding Path="DataContext.VisibleTodos"
+                                                         RelativeSource="{RelativeSource AncestorType=Window}" />
+                                            </MultiBinding>
+                                        </ItemsControl.ItemsSource>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <CheckBox Content="{Binding Text}"
+                                                          IsChecked="{Binding IsCompleted}"
+                                                          Tag="{Binding}"
+                                                          Click="QuickCompleteTodoCheckBox_OnClick"
+                                                          FontSize="11" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+
+            <Grid Grid.Row="1">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Mode}" Value="{x:Static todo:TodoWidgetMode.Today}">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <ListBox ItemsSource="{Binding VisibleTodos}"
+                         BorderThickness="0"
+                         Background="Transparent">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel Margin="4">
+                                <TextBlock DockPanel.Dock="Left"
+                                           Width="78"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           Text="{Binding StartTime}" />
+                                <CheckBox Content="{Binding Text}"
+                                          IsChecked="{Binding IsCompleted}"
+                                          Tag="{Binding}"
+                                          Click="QuickCompleteTodoCheckBox_OnClick" />
+                            </DockPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+
+            <Grid Grid.Row="1">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Mode}" Value="{x:Static todo:TodoWidgetMode.Calendar}">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <DockPanel>
+                    <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,6">
+                        <Button Content="‹" Click="PreviousMonthButton_OnClick" />
+                        <TextBlock Text="{Binding CalendarMonth, StringFormat={}{0:yyyy年MM月}}"
+                                   Margin="10,0"
+                                   VerticalAlignment="Center"
+                                   FontWeight="SemiBold" />
+                        <Button Content="›" Click="NextMonthButton_OnClick" />
+                        <Button Content="本月"
+                                Margin="8,0,0,0"
+                                Click="CurrentMonthButton_OnClick" />
+                    </DockPanel>
+                    <ItemsControl ItemsSource="{Binding CalendarDates}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="6" Columns="7" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="2"
+                                        Padding="4"
+                                        BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        MouseEnter="DateCell_OnMouseEnter"
+                                        MouseLeave="DateCell_OnMouseLeave"
+                                        MouseLeftButtonDown="DateCell_OnMouseLeftButtonDown">
+                                    <TextBlock Text="{Binding Day}" FontSize="12" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </DockPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>
