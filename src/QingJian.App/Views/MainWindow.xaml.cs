@@ -325,8 +325,8 @@ public partial class MainWindow : Window
 
     private async Task SaveEditorModeAsync(string editorMode)
     {
-        _currentEditorMode = new AppSettings(editorMode).Normalize().EditorMode;
-        await _settingsService.SaveAsync(new AppSettings(_currentEditorMode));
+        var settings = await _settingsService.SaveEditorModeAsync(editorMode);
+        _currentEditorMode = settings.EditorMode;
     }
 
     private async Task SaveLocalImageAsync(EditorMessage message)

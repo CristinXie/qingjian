@@ -57,6 +57,31 @@ public sealed class AppSettingsServiceTodoWidgetTests
     }
 
     [Fact]
+    public async Task SaveEditorModeAsync_PreservesExistingTodoWidgetPreferences()
+    {
+        var folder = CreateTempFolder();
+        var service = new AppSettingsService(folder);
+        var preferences = TodoWidgetPreferences.Default with
+        {
+            IsVisible = false,
+            Mode = TodoWidgetMode.Calendar,
+            Left = 210,
+            Top = 160,
+            IsLocked = true,
+            Opacity = 0.58,
+            CalendarYear = 2027,
+            CalendarMonth = 11
+        };
+        await service.SaveAsync(new AppSettings(AppSettings.DefaultEditorMode, preferences));
+
+        await service.SaveEditorModeAsync(AppSettings.MarkdownEditorMode);
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(AppSettings.MarkdownEditorMode, loaded.EditorMode);
+        Assert.Equal(preferences, loaded.TodoWidget);
+    }
+
+    [Fact]
     public async Task LoadAsync_NormalizesInvalidTodoWidgetPreferences()
     {
         var folder = CreateTempFolder();

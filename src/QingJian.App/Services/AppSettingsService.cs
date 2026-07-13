@@ -85,4 +85,16 @@ public sealed class AppSettingsService
         await using var stream = File.Create(_settingsPath);
         await JsonSerializer.SerializeAsync(stream, normalizedSettings, JsonOptions, cancellationToken);
     }
+
+    public async Task<AppSettings> SaveEditorModeAsync(string editorMode, CancellationToken cancellationToken = default)
+    {
+        var currentSettings = await LoadAsync(cancellationToken);
+        var updatedSettings = currentSettings with
+        {
+            EditorMode = editorMode
+        };
+
+        await SaveAsync(updatedSettings, cancellationToken);
+        return updatedSettings.Normalize();
+    }
 }
