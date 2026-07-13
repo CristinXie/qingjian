@@ -5,6 +5,7 @@ using QingJian.App.Data;
 using QingJian.App.Hotkeys;
 using QingJian.App.QuickNotes;
 using QingJian.App.Services;
+using QingJian.App.TodoWidgets;
 using QingJian.App.ViewModels;
 using QingJian.App.Views;
 
@@ -14,7 +15,7 @@ public partial class App : Application
 {
     private GlobalHotkeyService? _hotkeyService;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
@@ -31,11 +32,17 @@ public partial class App : Application
         var dbContext = new AppDbContext(options);
         var repository = new NoteRepository(dbContext);
         var service = new NoteService(repository);
+        var todoRepository = new TodoRepository(dbContext);
+        var todoService = new TodoService(todoRepository);
         var viewModel = new MainViewModel(service);
         var settingsService = new AppSettingsService(appDataFolder);
         var attachmentService = new AttachmentService(Path.Combine(appDataFolder, "attachments"));
+        var todoWidgetCoordinator = new TodoWidgetCoordinator(
+            todoService,
+            settingsService,
+            new DesktopLayerService());
 
-        var window = new MainWindow(viewModel, settingsService, attachmentService);
+        var window = new MainWindow(viewModel, settingsService, attachmentService, todoWidgetCoordinator);
         var coordinator = new QuickNoteCoordinator(
             service,
             viewModel,
@@ -59,6 +66,7 @@ public partial class App : Application
         };
 
         window.Show();
+        await todoWidgetCoordinator.InitializeAsync();
     }
 
     protected override void OnExit(ExitEventArgs e)

@@ -20,10 +20,13 @@
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,1,0">
             <DockPanel Margin="16">
-                <Button DockPanel.Dock="Top"
-                        Content="新建便签"
-                        Command="{Binding NewNoteCommand}"
-                        Margin="0,0,0,14" />
+                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+                    <Button Content="新建便签"
+                            Command="{Binding NewNoteCommand}" />
+                    <Button Content="显示/隐藏桌面待办"
+                            Margin="0,8,0,0"
+                            Click="ToggleTodoWidgetButton_OnClick" />
+                </StackPanel>
 
                 <ListBox ItemsSource="{Binding Notes}"
                          SelectedItem="{Binding SelectedNote, Mode=TwoWay}"

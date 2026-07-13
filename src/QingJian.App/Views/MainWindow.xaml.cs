@@ -10,6 +10,7 @@ using System.Windows.Media.Imaging;
 using Microsoft.Web.WebView2.Core;
 using QingJian.App.Editor;
 using QingJian.App.Services;
+using QingJian.App.TodoWidgets;
 using QingJian.App.ViewModels;
 
 namespace QingJian.App.Views;
@@ -19,6 +20,7 @@ public partial class MainWindow : Window
     private readonly MainViewModel _viewModel;
     private readonly AppSettingsService _settingsService;
     private readonly AttachmentService _attachmentService;
+    private readonly TodoWidgetCoordinator _todoWidgetCoordinator;
     private readonly MarkdownEditorState _editorState = new();
     private bool _isEditorReady;
     private bool _isUpdatingTitlePlaceholder;
@@ -35,12 +37,14 @@ public partial class MainWindow : Window
     public MainWindow(
         MainViewModel viewModel,
         AppSettingsService settingsService,
-        AttachmentService attachmentService)
+        AttachmentService attachmentService,
+        TodoWidgetCoordinator todoWidgetCoordinator)
     {
         InitializeComponent();
         _viewModel = viewModel;
         _settingsService = settingsService;
         _attachmentService = attachmentService;
+        _todoWidgetCoordinator = todoWidgetCoordinator;
         DataContext = _viewModel;
         Loaded += OnLoaded;
         Closing += OnClosing;
@@ -52,6 +56,11 @@ public partial class MainWindow : Window
                 _ = LoadSelectedNoteIntoEditorAsync();
             }
         };
+    }
+
+    private void ToggleTodoWidgetButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        _todoWidgetCoordinator.ToggleWidgetVisibility();
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
