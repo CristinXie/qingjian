@@ -102,6 +102,19 @@ public sealed class TodoWidgetViewModelTests
         Assert.Null(viewModel.PinnedDate);
     }
 
+    [Fact]
+    public void PopoverTargetDate_RemainsSelectedAfterHoverLeaves()
+    {
+        var today = new DateOnly(2026, 7, 13);
+        var selectedDate = today.AddDays(2);
+        var viewModel = new TodoWidgetViewModel(new InMemoryTodoService(), TodoWidgetPreferences.Default, () => today);
+
+        viewModel.OpenPopoverForDate(selectedDate);
+        viewModel.ClearHoverDate(selectedDate);
+
+        Assert.Equal(selectedDate, viewModel.ActivePopoverDate);
+    }
+
     private sealed class InMemoryTodoService : ITodoService
     {
         private readonly List<TodoItem> _todos = new();

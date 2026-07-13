@@ -101,7 +101,7 @@ public partial class TodoWidgetWindow : Window
     {
         if ((sender as FrameworkElement)?.DataContext is DateOnly date)
         {
-            _viewModel.SetHoverDate(date);
+            _viewModel.OpenPopoverForDate(date);
             ShowPopover();
         }
     }
