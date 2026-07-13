@@ -1,21 +1,44 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using QingJian.App.TodoWidgets;
 
 namespace QingJian.App.Services;
 
-public sealed record AppSettings(string EditorMode)
+public sealed record AppSettings
 {
     public const string DefaultEditorMode = "wysiwyg";
     public const string MarkdownEditorMode = "markdown";
 
-    public static AppSettings Default { get; } = new(DefaultEditorMode);
+    public static AppSettings Default { get; } = new(DefaultEditorMode, TodoWidgetPreferences.Default);
+
+    [JsonConstructor]
+    public AppSettings(string EditorMode, TodoWidgetPreferences TodoWidget)
+    {
+        this.EditorMode = EditorMode;
+        this.TodoWidget = TodoWidget;
+    }
+
+    public AppSettings(string EditorMode)
+        : this(EditorMode, TodoWidgetPreferences.Default)
+    {
+    }
+
+    public string EditorMode { get; init; }
+
+    public TodoWidgetPreferences TodoWidget { get; init; }
 
     public AppSettings Normalize()
     {
-        return EditorMode is DefaultEditorMode or MarkdownEditorMode
-            ? this
-            : Default;
+        var editorMode = EditorMode is DefaultEditorMode or MarkdownEditorMode
+            ? EditorMode
+            : DefaultEditorMode;
+
+        return this with
+        {
+            EditorMode = editorMode,
+            TodoWidget = (TodoWidget ?? TodoWidgetPreferences.Default).Normalize()
+        };
     }
 }
 
