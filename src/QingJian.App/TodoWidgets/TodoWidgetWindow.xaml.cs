@@ -111,6 +111,10 @@ public partial class TodoWidgetWindow : Window
         if ((sender as FrameworkElement)?.DataContext is DateOnly date)
         {
             _viewModel.ClearHoverDate(date);
+            if (_viewModel.PinnedDate is null)
+            {
+                EditPopover.Visibility = Visibility.Collapsed;
+            }
         }
     }
 

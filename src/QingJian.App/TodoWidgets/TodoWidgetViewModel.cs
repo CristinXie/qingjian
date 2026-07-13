@@ -13,7 +13,6 @@ public sealed class TodoWidgetViewModel : ViewModelBase
     private DateOnly _calendarMonth;
     private DateOnly? _hoverDate;
     private DateOnly? _pinnedDate;
-    private DateOnly? _popoverDate;
     private bool _isLocked;
     private double _opacity;
 
@@ -94,7 +93,7 @@ public sealed class TodoWidgetViewModel : ViewModelBase
         }
     }
 
-    public DateOnly ActivePopoverDate => _popoverDate ?? PinnedDate ?? HoverDate ?? _todayProvider();
+    public DateOnly ActivePopoverDate => PinnedDate ?? HoverDate ?? _todayProvider();
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -166,7 +165,6 @@ public sealed class TodoWidgetViewModel : ViewModelBase
 
     public void OpenPopoverForDate(DateOnly date)
     {
-        _popoverDate = date;
         HoverDate = date;
         OnPropertyChanged(nameof(ActivePopoverDate));
     }
@@ -182,14 +180,12 @@ public sealed class TodoWidgetViewModel : ViewModelBase
     public void PinDate(DateOnly date)
     {
         PinnedDate = date;
-        _popoverDate = date;
         OnPropertyChanged(nameof(ActivePopoverDate));
     }
 
     public void ClearPinnedDate()
     {
         PinnedDate = null;
-        _popoverDate = null;
         OnPropertyChanged(nameof(ActivePopoverDate));
     }
 

@@ -103,13 +103,28 @@ public sealed class TodoWidgetViewModelTests
     }
 
     [Fact]
-    public void PopoverTargetDate_RemainsSelectedAfterHoverLeaves()
+    public void HoverPopoverTargetDate_ClearsAfterHoverLeaves()
     {
         var today = new DateOnly(2026, 7, 13);
         var selectedDate = today.AddDays(2);
         var viewModel = new TodoWidgetViewModel(new InMemoryTodoService(), TodoWidgetPreferences.Default, () => today);
 
         viewModel.OpenPopoverForDate(selectedDate);
+        Assert.Equal(selectedDate, viewModel.ActivePopoverDate);
+
+        viewModel.ClearHoverDate(selectedDate);
+
+        Assert.Equal(today, viewModel.ActivePopoverDate);
+    }
+
+    [Fact]
+    public void PinnedPopoverTargetDate_RemainsSelectedAfterHoverLeaves()
+    {
+        var today = new DateOnly(2026, 7, 13);
+        var selectedDate = today.AddDays(2);
+        var viewModel = new TodoWidgetViewModel(new InMemoryTodoService(), TodoWidgetPreferences.Default, () => today);
+
+        viewModel.PinDate(selectedDate);
         viewModel.ClearHoverDate(selectedDate);
 
         Assert.Equal(selectedDate, viewModel.ActivePopoverDate);
