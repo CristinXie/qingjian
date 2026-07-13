@@ -6,7 +6,7 @@ using QingJian.App.Models;
 
 namespace QingJian.App.TodoWidgets;
 
-public partial class TodoWidgetWindow : Window
+public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
 {
     private readonly TodoWidgetViewModel _viewModel;
     private readonly DesktopLayerService _desktopLayerService;
@@ -55,46 +55,57 @@ public partial class TodoWidgetWindow : Window
         _ = _coordinator.SavePreferencesAsync();
     }
 
-    private void EightDayButton_OnClick(object sender, RoutedEventArgs e)
+    private async void EightDayButton_OnClick(object sender, RoutedEventArgs e)
     {
         _viewModel.SetMode(TodoWidgetMode.EightDay);
-        _ = _viewModel.LoadAsync();
-        _ = _coordinator.SavePreferencesAsync();
+        await _viewModel.LoadAsync();
+        await _coordinator.SavePreferencesAsync();
     }
 
-    private void TodayButton_OnClick(object sender, RoutedEventArgs e)
+    private async void TodayButton_OnClick(object sender, RoutedEventArgs e)
     {
         _viewModel.SetMode(TodoWidgetMode.Today);
-        _ = _viewModel.LoadAsync();
-        _ = _coordinator.SavePreferencesAsync();
+        await _viewModel.LoadAsync();
+        await _coordinator.SavePreferencesAsync();
     }
 
-    private void CalendarButton_OnClick(object sender, RoutedEventArgs e)
+    private async void CalendarButton_OnClick(object sender, RoutedEventArgs e)
     {
         _viewModel.SetMode(TodoWidgetMode.Calendar);
-        _ = _viewModel.LoadAsync();
-        _ = _coordinator.SavePreferencesAsync();
+        await _viewModel.LoadAsync();
+        await _coordinator.SavePreferencesAsync();
     }
 
-    private void PreviousMonthButton_OnClick(object sender, RoutedEventArgs e)
+    private async void PreviousMonthButton_OnClick(object sender, RoutedEventArgs e)
     {
         _viewModel.ShowPreviousMonth();
-        _ = _viewModel.LoadAsync();
-        _ = _coordinator.SavePreferencesAsync();
+        await _viewModel.LoadAsync();
+        await _coordinator.SavePreferencesAsync();
     }
 
-    private void NextMonthButton_OnClick(object sender, RoutedEventArgs e)
+    private async void NextMonthButton_OnClick(object sender, RoutedEventArgs e)
     {
         _viewModel.ShowNextMonth();
-        _ = _viewModel.LoadAsync();
-        _ = _coordinator.SavePreferencesAsync();
+        await _viewModel.LoadAsync();
+        await _coordinator.SavePreferencesAsync();
     }
 
-    private void CurrentMonthButton_OnClick(object sender, RoutedEventArgs e)
+    private async void CurrentMonthButton_OnClick(object sender, RoutedEventArgs e)
     {
         _viewModel.ReturnToCurrentMonth();
-        _ = _viewModel.LoadAsync();
-        _ = _coordinator.SavePreferencesAsync();
+        await _viewModel.LoadAsync();
+        await _coordinator.SavePreferencesAsync();
+    }
+
+    private async void LockCheckBox_OnChanged(object sender, RoutedEventArgs e)
+    {
+        await _coordinator.SavePreferencesAsync();
+    }
+
+    private void OpenTodayPopoverButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        _viewModel.PinToday();
+        ShowPopover();
     }
 
     private void DateCell_OnMouseEnter(object sender, MouseEventArgs e)
@@ -137,10 +148,10 @@ public partial class TodoWidgetWindow : Window
         await _viewModel.SetCompletedAsync(todo, checkBox.IsChecked == true);
     }
 
-    private void HideButton_OnClick(object sender, RoutedEventArgs e)
+    private async void HideButton_OnClick(object sender, RoutedEventArgs e)
     {
         _isHidingFromButton = true;
-        _coordinator.HideWidget();
+        await _coordinator.HideWidgetAsync();
         _isHidingFromButton = false;
     }
 
@@ -195,21 +206,12 @@ public partial class TodoWidgetWindow : Window
 
     private TodoDraft CreateDraftFromPopover()
     {
-        var timeKind = TimeKindComboBox.SelectedIndex switch
-        {
-            1 => TodoTimeKind.Single,
-            2 => TodoTimeKind.Range,
-            _ => TodoTimeKind.None
-        };
-
-        TimeOnly? startTime = string.IsNullOrWhiteSpace(StartTimeTextBox.Text)
-            ? null
-            : TimeOnly.Parse(StartTimeTextBox.Text);
-        TimeOnly? endTime = string.IsNullOrWhiteSpace(EndTimeTextBox.Text)
-            ? null
-            : TimeOnly.Parse(EndTimeTextBox.Text);
-
-        return new TodoDraft(_viewModel.ActivePopoverDate, TodoTextBox.Text, timeKind, startTime, endTime);
+        return TodoWidgetDraftParser.CreateDraft(
+            _viewModel.ActivePopoverDate,
+            TodoTextBox.Text,
+            TimeKindComboBox.SelectedIndex,
+            StartTimeTextBox.Text,
+            EndTimeTextBox.Text);
     }
 
     private async void CompleteTodoCheckBox_OnClick(object sender, RoutedEventArgs e)

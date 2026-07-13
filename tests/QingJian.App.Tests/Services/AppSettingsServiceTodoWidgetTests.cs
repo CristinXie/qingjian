@@ -82,6 +82,46 @@ public sealed class AppSettingsServiceTodoWidgetTests
     }
 
     [Fact]
+    public async Task SaveTodoWidgetPreferencesAsync_PreservesExistingEditorMode()
+    {
+        var folder = CreateTempFolder();
+        var service = new AppSettingsService(folder);
+        var preferences = TodoWidgetPreferences.Default with
+        {
+            IsVisible = false,
+            Mode = TodoWidgetMode.Today,
+            Left = 180,
+            Top = 140,
+            IsLocked = true,
+            Opacity = 0.66
+        };
+        await service.SaveAsync(new AppSettings(AppSettings.MarkdownEditorMode, TodoWidgetPreferences.Default));
+
+        await service.SaveTodoWidgetPreferencesAsync(preferences);
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(AppSettings.MarkdownEditorMode, loaded.EditorMode);
+        Assert.Equal(preferences, loaded.TodoWidget);
+    }
+
+    [Fact]
+    public async Task SaveTodoWidgetPreferencesAsync_DoesNotOverwriteNewerEditorModeFromStaleSettings()
+    {
+        var folder = CreateTempFolder();
+        var service = new AppSettingsService(folder);
+        var staleSettings = AppSettings.Default;
+        var preferences = TodoWidgetPreferences.Default with { IsVisible = false };
+        await service.SaveEditorModeAsync(AppSettings.MarkdownEditorMode);
+
+        await service.SaveTodoWidgetPreferencesAsync(preferences);
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(AppSettings.MarkdownEditorMode, loaded.EditorMode);
+        Assert.Equal(preferences, loaded.TodoWidget);
+        Assert.Equal(AppSettings.DefaultEditorMode, staleSettings.EditorMode);
+    }
+
+    [Fact]
     public async Task LoadAsync_NormalizesInvalidTodoWidgetPreferences()
     {
         var folder = CreateTempFolder();

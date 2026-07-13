@@ -14,6 +14,7 @@ namespace QingJian.App;
 public partial class App : Application
 {
     private GlobalHotkeyService? _hotkeyService;
+    private TodoWidgetCoordinator? _todoWidgetCoordinator;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -37,12 +38,13 @@ public partial class App : Application
         var viewModel = new MainViewModel(service);
         var settingsService = new AppSettingsService(appDataFolder);
         var attachmentService = new AttachmentService(Path.Combine(appDataFolder, "attachments"));
-        var todoWidgetCoordinator = new TodoWidgetCoordinator(
+        _todoWidgetCoordinator = new TodoWidgetCoordinator(
             todoService,
             settingsService,
             new DesktopLayerService());
 
-        var window = new MainWindow(viewModel, settingsService, attachmentService, todoWidgetCoordinator);
+        var window = new MainWindow(viewModel, settingsService, attachmentService, _todoWidgetCoordinator);
+        MainWindow = window;
         var coordinator = new QuickNoteCoordinator(
             service,
             viewModel,
@@ -66,11 +68,31 @@ public partial class App : Application
         };
 
         window.Show();
-        await todoWidgetCoordinator.InitializeAsync();
+        try
+        {
+            await _todoWidgetCoordinator.InitializeAsync();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                window,
+                $"桌面待办组件启动失败，便签功能仍可继续使用。\n\n{ex.Message}",
+                "QingJian",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        try
+        {
+            _todoWidgetCoordinator?.SavePreferencesAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception)
+        {
+        }
+
         _hotkeyService?.Dispose();
         base.OnExit(e);
     }

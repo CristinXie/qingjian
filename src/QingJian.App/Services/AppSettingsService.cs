@@ -68,7 +68,9 @@ public sealed class AppSettingsService
         try
         {
             await using var stream = File.OpenRead(_settingsPath);
-            var settings = await JsonSerializer.DeserializeAsync<AppSettings>(stream, JsonOptions, cancellationToken);
+            var settings = await JsonSerializer
+                .DeserializeAsync<AppSettings>(stream, JsonOptions, cancellationToken)
+                .ConfigureAwait(false);
             return (settings ?? AppSettings.Default).Normalize();
         }
         catch (JsonException)
@@ -83,18 +85,34 @@ public sealed class AppSettingsService
         var normalizedSettings = settings.Normalize();
 
         await using var stream = File.Create(_settingsPath);
-        await JsonSerializer.SerializeAsync(stream, normalizedSettings, JsonOptions, cancellationToken);
+        await JsonSerializer
+            .SerializeAsync(stream, normalizedSettings, JsonOptions, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<AppSettings> SaveEditorModeAsync(string editorMode, CancellationToken cancellationToken = default)
     {
-        var currentSettings = await LoadAsync(cancellationToken);
+        var currentSettings = await LoadAsync(cancellationToken).ConfigureAwait(false);
         var updatedSettings = currentSettings with
         {
             EditorMode = editorMode
         };
 
-        await SaveAsync(updatedSettings, cancellationToken);
+        await SaveAsync(updatedSettings, cancellationToken).ConfigureAwait(false);
+        return updatedSettings.Normalize();
+    }
+
+    public async Task<AppSettings> SaveTodoWidgetPreferencesAsync(
+        TodoWidgetPreferences preferences,
+        CancellationToken cancellationToken = default)
+    {
+        var currentSettings = await LoadAsync(cancellationToken).ConfigureAwait(false);
+        var updatedSettings = currentSettings with
+        {
+            TodoWidget = preferences
+        };
+
+        await SaveAsync(updatedSettings, cancellationToken).ConfigureAwait(false);
         return updatedSettings.Normalize();
     }
 }

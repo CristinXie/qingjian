@@ -183,6 +183,11 @@ public sealed class TodoWidgetViewModel : ViewModelBase
         OnPropertyChanged(nameof(ActivePopoverDate));
     }
 
+    public void PinToday()
+    {
+        PinDate(_todayProvider());
+    }
+
     public void ClearPinnedDate()
     {
         PinnedDate = null;

@@ -7,8 +7,8 @@ public sealed class TodoWidgetCoordinator
 {
     private readonly ITodoService _todoService;
     private readonly AppSettingsService _settingsService;
-    private readonly DesktopLayerService _desktopLayerService;
-    private TodoWidgetWindow? _window;
+    private readonly Func<TodoWidgetViewModel, TodoWidgetCoordinator, ITodoWidgetWindow> _windowFactory;
+    private ITodoWidgetWindow? _window;
     private TodoWidgetViewModel? _viewModel;
     private AppSettings _settings = AppSettings.Default;
 
@@ -16,10 +16,23 @@ public sealed class TodoWidgetCoordinator
         ITodoService todoService,
         AppSettingsService settingsService,
         DesktopLayerService desktopLayerService)
+        : this(
+            todoService,
+            settingsService,
+            desktopLayerService,
+            (viewModel, coordinator) => new TodoWidgetWindow(viewModel, desktopLayerService, coordinator))
+    {
+    }
+
+    public TodoWidgetCoordinator(
+        ITodoService todoService,
+        AppSettingsService settingsService,
+        DesktopLayerService desktopLayerService,
+        Func<TodoWidgetViewModel, TodoWidgetCoordinator, ITodoWidgetWindow> windowFactory)
     {
         _todoService = todoService;
         _settingsService = settingsService;
-        _desktopLayerService = desktopLayerService;
+        _windowFactory = windowFactory;
     }
 
     public bool IsVisible => _window?.IsVisible == true;
@@ -31,18 +44,19 @@ public sealed class TodoWidgetCoordinator
 
         if (_settings.TodoWidget.IsVisible)
         {
-            ShowWidget();
-            await _viewModel.LoadAsync(cancellationToken);
+            await ShowWidgetAsync(cancellationToken);
         }
     }
 
-    public void ShowWidget()
+    public async Task ShowWidgetAsync(CancellationToken cancellationToken = default)
     {
         EnsureWindow();
         _window!.Show();
+        await _viewModel!.LoadAsync(cancellationToken);
+        await SavePreferencesAsync(cancellationToken);
     }
 
-    public void HideWidget()
+    public async Task HideWidgetAsync(CancellationToken cancellationToken = default)
     {
         if (_window is null)
         {
@@ -50,18 +64,18 @@ public sealed class TodoWidgetCoordinator
         }
 
         _window.Hide();
-        _ = SavePreferencesAsync();
+        await SavePreferencesAsync(cancellationToken);
     }
 
-    public void ToggleWidgetVisibility()
+    public async Task ToggleWidgetVisibilityAsync(CancellationToken cancellationToken = default)
     {
         if (IsVisible)
         {
-            HideWidget();
+            await HideWidgetAsync(cancellationToken);
             return;
         }
 
-        ShowWidget();
+        await ShowWidgetAsync(cancellationToken);
     }
 
     public async Task SavePreferencesAsync(CancellationToken cancellationToken = default)
@@ -74,8 +88,9 @@ public sealed class TodoWidgetCoordinator
         var left = _window?.Left ?? _settings.TodoWidget.Left;
         var top = _window?.Top ?? _settings.TodoWidget.Top;
         var preferences = _viewModel.ToPreferences(left, top, IsVisible);
-        _settings = _settings with { TodoWidget = preferences };
-        await _settingsService.SaveAsync(_settings, cancellationToken);
+        _settings = await _settingsService
+            .SaveTodoWidgetPreferencesAsync(preferences, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private void EnsureWindow()
@@ -86,10 +101,21 @@ public sealed class TodoWidgetCoordinator
         }
 
         _viewModel ??= new TodoWidgetViewModel(_todoService, _settings.TodoWidget);
-        _window = new TodoWidgetWindow(_viewModel, _desktopLayerService, this)
-        {
-            Left = _settings.TodoWidget.Left,
-            Top = _settings.TodoWidget.Top
-        };
+        _window = _windowFactory(_viewModel, this);
+        _window.Left = _settings.TodoWidget.Left;
+        _window.Top = _settings.TodoWidget.Top;
     }
+}
+
+public interface ITodoWidgetWindow
+{
+    bool IsVisible { get; }
+
+    double Left { get; set; }
+
+    double Top { get; set; }
+
+    void Show();
+
+    void Hide();
 }

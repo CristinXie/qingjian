@@ -16,6 +16,7 @@
         Closing="Window_OnClosing">
     <Window.Resources>
         <todo:TodoItemsForDateConverter x:Key="TodoItemsForDateConverter" />
+        <todo:TodoTimeDisplayConverter x:Key="TodoTimeDisplayConverter" />
     </Window.Resources>
     <Border x:Name="RootBorder"
             Background="{StaticResource TodoWidgetBackgroundBrush}"
@@ -40,6 +41,8 @@
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                     <CheckBox Content="锁定"
                               IsChecked="{Binding IsLocked, Mode=TwoWay}"
+                              Checked="LockCheckBox_OnChanged"
+                              Unchecked="LockCheckBox_OnChanged"
                               VerticalAlignment="Center"
                               Margin="0,0,8,0" />
                     <Button Content="隐藏" Click="HideButton_OnClick" />
@@ -112,24 +115,31 @@
                         </Style.Triggers>
                     </Style>
                 </Grid.Style>
-                <ListBox ItemsSource="{Binding VisibleTodos}"
-                         BorderThickness="0"
-                         Background="Transparent">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <DockPanel Margin="4">
-                                <TextBlock DockPanel.Dock="Left"
-                                           Width="78"
-                                           Foreground="{StaticResource MutedTextBrush}"
-                                           Text="{Binding StartTime}" />
-                                <CheckBox Content="{Binding Text}"
-                                          IsChecked="{Binding IsCompleted, Mode=OneWay}"
-                                          Tag="{Binding}"
-                                          Click="QuickCompleteTodoCheckBox_OnClick" />
-                            </DockPanel>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                <DockPanel>
+                    <Button DockPanel.Dock="Top"
+                            Content="编辑今日"
+                            HorizontalAlignment="Left"
+                            Margin="4,0,0,6"
+                            Click="OpenTodayPopoverButton_OnClick" />
+                    <ListBox ItemsSource="{Binding VisibleTodos}"
+                             BorderThickness="0"
+                             Background="Transparent">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="4">
+                                    <TextBlock DockPanel.Dock="Left"
+                                               Width="78"
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               Text="{Binding Converter={StaticResource TodoTimeDisplayConverter}}" />
+                                    <CheckBox Content="{Binding Text}"
+                                              IsChecked="{Binding IsCompleted, Mode=OneWay}"
+                                              Tag="{Binding}"
+                                              Click="QuickCompleteTodoCheckBox_OnClick" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
             </Grid>
 
             <Grid Grid.Row="1">
@@ -171,7 +181,29 @@
                                         MouseEnter="DateCell_OnMouseEnter"
                                         MouseLeave="DateCell_OnMouseLeave"
                                         MouseLeftButtonDown="DateCell_OnMouseLeftButtonDown">
-                                    <TextBlock Text="{Binding Day}" FontSize="12" />
+                                    <Grid>
+                                        <TextBlock Text="{Binding Day}" FontSize="12" />
+                                        <ItemsControl HorizontalAlignment="Right"
+                                                      VerticalAlignment="Bottom">
+                                            <ItemsControl.ItemsSource>
+                                                <MultiBinding Converter="{StaticResource TodoItemsForDateConverter}">
+                                                    <Binding />
+                                                    <Binding Path="DataContext.VisibleTodos"
+                                                             RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                </MultiBinding>
+                                            </ItemsControl.ItemsSource>
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="•" FontSize="10" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Grid>
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

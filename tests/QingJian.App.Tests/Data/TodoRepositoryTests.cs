@@ -29,6 +29,25 @@ public sealed class TodoRepositoryTests
     }
 
     [Fact]
+    public async Task InitializeAsync_AddsTodoItemsTableToExistingNotesOnlyDatabase()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await CreateLegacyNotesTableAsync(connection);
+        var repository = CreateRepository(connection);
+
+        await repository.InitializeAsync();
+        await repository.AddAsync(CreateTodo("todo-1", new DateOnly(2026, 7, 13), "Upgrade database"));
+
+        var todos = await repository.GetActiveTodosAsync(
+            new DateOnly(2026, 7, 13),
+            new DateOnly(2026, 7, 13));
+
+        Assert.Single(todos);
+        Assert.Equal("Upgrade database", todos[0].Text);
+    }
+
+    [Fact]
     public async Task GetActiveTodosAsync_ReturnsDateRangeAndExcludesDeleted()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
@@ -114,6 +133,22 @@ public sealed class TodoRepositoryTests
             .Options;
 
         return new TodoRepository(new AppDbContext(options));
+    }
+
+    private static async Task CreateLegacyNotesTableAsync(SqliteConnection connection)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            CREATE TABLE "Notes" (
+                "Id" TEXT NOT NULL CONSTRAINT "PK_Notes" PRIMARY KEY,
+                "Title" TEXT NOT NULL,
+                "Content" TEXT NOT NULL,
+                "CreatedAt" TEXT NOT NULL,
+                "UpdatedAt" TEXT NOT NULL,
+                "IsDeleted" INTEGER NOT NULL DEFAULT 0
+            );
+            """;
+        await command.ExecuteNonQueryAsync();
     }
 
     private static TodoItem CreateTodo(string id, DateOnly date, string text)

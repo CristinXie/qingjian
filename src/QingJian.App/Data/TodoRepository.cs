@@ -14,7 +14,34 @@ public sealed class TodoRepository : ITodoRepository
 
     public Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        return _dbContext.Database.EnsureCreatedAsync(cancellationToken);
+        return InitializeSchemaAsync(cancellationToken);
+    }
+
+    private async Task InitializeSchemaAsync(CancellationToken cancellationToken)
+    {
+        await _dbContext.Database.EnsureCreatedAsync(cancellationToken);
+        await _dbContext.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS "TodoItems" (
+                "Id" TEXT NOT NULL CONSTRAINT "PK_TodoItems" PRIMARY KEY,
+                "Date" TEXT NOT NULL,
+                "Text" TEXT NOT NULL,
+                "StartTime" TEXT NULL,
+                "EndTime" TEXT NULL,
+                "IsCompleted" INTEGER NOT NULL DEFAULT 0,
+                "CreatedAt" TEXT NOT NULL,
+                "UpdatedAt" TEXT NOT NULL,
+                "CompletedAt" TEXT NULL,
+                "IsDeleted" INTEGER NOT NULL DEFAULT 0
+            );
+            """,
+            cancellationToken);
+        await _dbContext.Database.ExecuteSqlRawAsync(
+            """
+            CREATE INDEX IF NOT EXISTS "IX_TodoItems_Date_IsDeleted"
+            ON "TodoItems" ("Date", "IsDeleted");
+            """,
+            cancellationToken);
     }
 
     public async Task<IReadOnlyList<TodoItem>> GetActiveTodosAsync(

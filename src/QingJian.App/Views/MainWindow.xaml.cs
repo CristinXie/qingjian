@@ -58,9 +58,9 @@ public partial class MainWindow : Window
         };
     }
 
-    private void ToggleTodoWidgetButton_OnClick(object sender, RoutedEventArgs e)
+    private async void ToggleTodoWidgetButton_OnClick(object sender, RoutedEventArgs e)
     {
-        _todoWidgetCoordinator.ToggleWidgetVisibility();
+        await _todoWidgetCoordinator.ToggleWidgetVisibilityAsync();
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
