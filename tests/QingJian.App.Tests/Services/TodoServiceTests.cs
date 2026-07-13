@@ -94,6 +94,28 @@ public sealed class TodoServiceTests
             todo => Assert.Equal("done", todo.Id));
     }
 
+    [Fact]
+    public void SortTodos_GroupsByDateBeforePerDayCompletionAndTimeOrdering()
+    {
+        var service = new TodoService(new InMemoryTodoRepository());
+        var day1 = new DateOnly(2026, 7, 13);
+        var day2 = new DateOnly(2026, 7, 14);
+        var todos = new[]
+        {
+            CreateTodo("day2-incomplete", day2, "Day 2 incomplete", false, new TimeOnly(9, 0), null, null),
+            CreateTodo("day1-completed", day1, "Day 1 completed", true, null, null, new DateTime(2026, 7, 13, 12, 0, 0, DateTimeKind.Utc)),
+            CreateTodo("day1-incomplete", day1, "Day 1 incomplete", false, new TimeOnly(10, 0), null, null)
+        };
+
+        var sorted = service.SortTodos(todos);
+
+        Assert.Collection(
+            sorted,
+            todo => Assert.Equal("day1-incomplete", todo.Id),
+            todo => Assert.Equal("day1-completed", todo.Id),
+            todo => Assert.Equal("day2-incomplete", todo.Id));
+    }
+
     private static TodoItem CreateTodo(
         string id,
         DateOnly date,

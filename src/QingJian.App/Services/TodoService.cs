@@ -83,7 +83,8 @@ public sealed class TodoService : ITodoService
     public IReadOnlyList<TodoItem> SortTodos(IEnumerable<TodoItem> todos)
     {
         return todos
-            .OrderBy(todo => todo.IsCompleted)
+            .OrderBy(todo => todo.Date)
+            .ThenBy(todo => todo.IsCompleted)
             .ThenBy(todo => todo.IsCompleted ? 1 : todo.StartTime.HasValue ? 0 : 1)
             .ThenBy(todo => todo.IsCompleted ? null : todo.StartTime)
             .ThenBy(todo => todo.IsCompleted ? todo.CompletedAt : todo.CreatedAt)
