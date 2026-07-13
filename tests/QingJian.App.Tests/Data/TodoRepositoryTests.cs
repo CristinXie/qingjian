@@ -50,6 +50,35 @@ public sealed class TodoRepositoryTests
     }
 
     [Fact]
+    public async Task GetActiveTodosAsync_ReturnsCompletedTodosAfterIncompleteTodosForSameDate()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var repository = CreateRepository(connection);
+        await repository.InitializeAsync();
+
+        var completed = CreateTodo("completed", new DateOnly(2026, 7, 13), "Completed");
+        completed.IsCompleted = true;
+        completed.CompletedAt = new DateTime(2026, 7, 13, 9, 0, 0, DateTimeKind.Utc);
+
+        await repository.AddAsync(completed);
+        await repository.AddAsync(CreateTodo("incomplete", new DateOnly(2026, 7, 13), "Incomplete"));
+        await repository.AddAsync(CreateTodo("next-day", new DateOnly(2026, 7, 14), "Next day"));
+        await repository.AddAsync(CreateTodo("deleted", new DateOnly(2026, 7, 13), "Deleted"));
+        await repository.SoftDeleteAsync("deleted", new DateTime(2026, 7, 13, 10, 0, 0, DateTimeKind.Utc));
+
+        var todos = await repository.GetActiveTodosAsync(
+            new DateOnly(2026, 7, 13),
+            new DateOnly(2026, 7, 14));
+
+        Assert.Collection(
+            todos,
+            todo => Assert.Equal("incomplete", todo.Id),
+            todo => Assert.Equal("completed", todo.Id),
+            todo => Assert.Equal("next-day", todo.Id));
+    }
+
+    [Fact]
     public async Task UpdateAsync_PersistsTodoFields()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");

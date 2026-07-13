@@ -24,6 +24,10 @@ public sealed class TodoRepository : ITodoRepository
     {
         return await _dbContext.TodoItems
             .Where(todo => !todo.IsDeleted && todo.Date >= fromDate && todo.Date <= toDate)
+            .OrderBy(todo => todo.Date)
+            .ThenBy(todo => todo.IsCompleted)
+            .ThenBy(todo => todo.CreatedAt)
+            .ThenBy(todo => todo.Id)
             .AsNoTracking()
             .ToListAsync(cancellationToken);
     }
