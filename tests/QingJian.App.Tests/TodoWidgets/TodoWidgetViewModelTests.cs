@@ -70,6 +70,22 @@ public sealed class TodoWidgetViewModelTests
     }
 
     [Fact]
+    public async Task TodosForDate_ReturnsOnlySelectedDateTodos()
+    {
+        var today = new DateOnly(2026, 7, 13);
+        var service = new InMemoryTodoService();
+        var viewModel = new TodoWidgetViewModel(service, TodoWidgetPreferences.Default, () => today);
+
+        await viewModel.CreateTodoAsync(new TodoDraft(today, "Today", TodoTimeKind.None, null, null));
+        await viewModel.CreateTodoAsync(new TodoDraft(today.AddDays(1), "Tomorrow", TodoTimeKind.None, null, null));
+
+        var todos = viewModel.TodosForDate(today);
+
+        Assert.Single(todos);
+        Assert.Equal("Today", todos[0].Text);
+    }
+
+    [Fact]
     public void PinAndHoverDates_TrackPopoverTarget()
     {
         var today = new DateOnly(2026, 7, 13);

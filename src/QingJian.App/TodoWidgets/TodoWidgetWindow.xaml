@@ -178,6 +178,91 @@
                     </ItemsControl>
                 </DockPanel>
             </Grid>
+
+            <Border x:Name="EditPopover"
+                    Grid.Row="1"
+                    Width="260"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Margin="0,24,8,0"
+                    Background="#FAF8F4"
+                    BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="10"
+                    Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock Text="编辑待办"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8" />
+                    <ListBox x:Name="PopoverTodoListBox"
+                             MaxHeight="116"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             Margin="0,0,0,8">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,2">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <Button Content="编辑"
+                                                Tag="{Binding}"
+                                                Click="EditTodoButton_OnClick" />
+                                        <Button Content="删除"
+                                                Tag="{Binding}"
+                                                Margin="4,0,0,0"
+                                                Click="DeleteTodoButton_OnClick" />
+                                    </StackPanel>
+                                    <CheckBox Content="{Binding Text}"
+                                              IsChecked="{Binding IsCompleted, Mode=OneWay}"
+                                              Tag="{Binding}"
+                                              Click="CompleteTodoCheckBox_OnClick" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <TextBox x:Name="TodoTextBox"
+                             MinHeight="28"
+                             TextWrapping="Wrap" />
+                    <ComboBox x:Name="TimeKindComboBox"
+                              SelectedIndex="0"
+                              Margin="0,8,0,0">
+                        <ComboBoxItem Content="无时间" />
+                        <ComboBoxItem Content="单时间" />
+                        <ComboBoxItem Content="时间段" />
+                    </ComboBox>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <TextBox x:Name="StartTimeTextBox"
+                                 Width="72"
+                                 ToolTip="HH:mm" />
+                        <TextBlock Text="-"
+                                   Margin="6,0"
+                                   VerticalAlignment="Center" />
+                        <TextBox x:Name="EndTimeTextBox"
+                                 Width="72"
+                                 ToolTip="HH:mm" />
+                    </StackPanel>
+                    <TextBlock x:Name="PopoverErrorTextBlock"
+                               Foreground="{StaticResource TodoWidgetDangerBrush}"
+                               FontSize="12"
+                               TextWrapping="Wrap"
+                               Visibility="Collapsed"
+                               Margin="0,8,0,0" />
+                    <DockPanel Margin="0,10,0,0" LastChildFill="False">
+                        <Button x:Name="SaveTodoButton"
+                                Content="新增"
+                                DockPanel.Dock="Right"
+                                Click="AddTodoButton_OnClick" />
+                        <Button Content="清空"
+                                DockPanel.Dock="Right"
+                                Margin="0,0,8,0"
+                                Click="ClearTodoFormButton_OnClick" />
+                        <Button Content="关闭"
+                                DockPanel.Dock="Right"
+                                Margin="0,0,8,0"
+                                Click="ClosePopoverButton_OnClick" />
+                    </DockPanel>
+                </StackPanel>
+            </Border>
         </Grid>
     </Border>
 </Window>

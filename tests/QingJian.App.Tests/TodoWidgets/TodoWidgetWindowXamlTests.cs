@@ -25,6 +25,21 @@ public sealed class TodoWidgetWindowXamlTests
         });
     }
 
+    [Fact]
+    public void PopoverCompleteCheckbox_BindsCompletionOneWay()
+    {
+        var xaml = XDocument.Load(FindTodoWidgetWindowXamlPath());
+        var popoverCompleteCheckBox = xaml
+            .Descendants()
+            .Single(element => element.Name.LocalName == "CheckBox"
+                && (string?)element.Attribute("Click") == "CompleteTodoCheckBox_OnClick");
+
+        var isCheckedBinding = (string?)popoverCompleteCheckBox.Attribute("IsChecked");
+
+        Assert.Contains("Binding IsCompleted", isCheckedBinding, StringComparison.Ordinal);
+        Assert.Contains("Mode=OneWay", isCheckedBinding, StringComparison.Ordinal);
+    }
+
     private static string FindTodoWidgetWindowXamlPath()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

@@ -11,6 +11,7 @@ public partial class TodoWidgetWindow : Window
     private readonly TodoWidgetViewModel _viewModel;
     private readonly DesktopLayerService _desktopLayerService;
     private readonly TodoWidgetCoordinator _coordinator;
+    private TodoItem? _editingTodo;
     private bool _isHidingFromButton;
 
     public TodoWidgetWindow(
@@ -101,6 +102,7 @@ public partial class TodoWidgetWindow : Window
         if ((sender as FrameworkElement)?.DataContext is DateOnly date)
         {
             _viewModel.SetHoverDate(date);
+            ShowPopover();
         }
     }
 
@@ -117,6 +119,7 @@ public partial class TodoWidgetWindow : Window
         if ((sender as FrameworkElement)?.DataContext is DateOnly date)
         {
             _viewModel.PinDate(date);
+            ShowPopover();
         }
     }
 
@@ -145,5 +148,120 @@ public partial class TodoWidgetWindow : Window
         }
 
         _ = _coordinator.SavePreferencesAsync();
+    }
+
+    private void ShowPopover()
+    {
+        EditPopover.Visibility = Visibility.Visible;
+        PopoverErrorTextBlock.Visibility = Visibility.Collapsed;
+        PopoverTodoListBox.ItemsSource = _viewModel.TodosForDate(_viewModel.ActivePopoverDate);
+    }
+
+    private void ClosePopoverButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        _viewModel.ClearPinnedDate();
+        EditPopover.Visibility = Visibility.Collapsed;
+    }
+
+    private async void AddTodoButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var draft = CreateDraftFromPopover();
+            if (_editingTodo is null)
+            {
+                await _viewModel.CreateTodoAsync(draft);
+            }
+            else
+            {
+                await _viewModel.UpdateTodoAsync(_editingTodo, draft);
+            }
+
+            ClearTodoForm();
+            PopoverTodoListBox.ItemsSource = _viewModel.TodosForDate(_viewModel.ActivePopoverDate);
+            PopoverErrorTextBlock.Visibility = Visibility.Collapsed;
+            await _coordinator.SavePreferencesAsync();
+        }
+        catch (Exception ex) when (ex is ArgumentException or FormatException)
+        {
+            PopoverErrorTextBlock.Text = ex.Message;
+            PopoverErrorTextBlock.Visibility = Visibility.Visible;
+        }
+    }
+
+    private TodoDraft CreateDraftFromPopover()
+    {
+        var timeKind = TimeKindComboBox.SelectedIndex switch
+        {
+            1 => TodoTimeKind.Single,
+            2 => TodoTimeKind.Range,
+            _ => TodoTimeKind.None
+        };
+
+        TimeOnly? startTime = string.IsNullOrWhiteSpace(StartTimeTextBox.Text)
+            ? null
+            : TimeOnly.Parse(StartTimeTextBox.Text);
+        TimeOnly? endTime = string.IsNullOrWhiteSpace(EndTimeTextBox.Text)
+            ? null
+            : TimeOnly.Parse(EndTimeTextBox.Text);
+
+        return new TodoDraft(_viewModel.ActivePopoverDate, TodoTextBox.Text, timeKind, startTime, endTime);
+    }
+
+    private async void CompleteTodoCheckBox_OnClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not TodoItem todo)
+        {
+            return;
+        }
+
+        await _viewModel.SetCompletedAsync(todo, !todo.IsCompleted);
+        PopoverTodoListBox.ItemsSource = _viewModel.TodosForDate(_viewModel.ActivePopoverDate);
+    }
+
+    private void EditTodoButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not TodoItem todo)
+        {
+            return;
+        }
+
+        _editingTodo = todo;
+        TodoTextBox.Text = todo.Text;
+        TimeKindComboBox.SelectedIndex = todo.StartTime is null ? 0 : todo.EndTime is null ? 1 : 2;
+        StartTimeTextBox.Text = todo.StartTime?.ToString("HH:mm") ?? string.Empty;
+        EndTimeTextBox.Text = todo.EndTime?.ToString("HH:mm") ?? string.Empty;
+        SaveTodoButton.Content = "保存";
+    }
+
+    private async void DeleteTodoButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not TodoItem todo)
+        {
+            return;
+        }
+
+        await _viewModel.DeleteTodoAsync(todo);
+        if (_editingTodo?.Id == todo.Id)
+        {
+            ClearTodoForm();
+        }
+
+        PopoverTodoListBox.ItemsSource = _viewModel.TodosForDate(_viewModel.ActivePopoverDate);
+    }
+
+    private void ClearTodoFormButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        ClearTodoForm();
+    }
+
+    private void ClearTodoForm()
+    {
+        _editingTodo = null;
+        TodoTextBox.Text = string.Empty;
+        TimeKindComboBox.SelectedIndex = 0;
+        StartTimeTextBox.Text = string.Empty;
+        EndTimeTextBox.Text = string.Empty;
+        SaveTodoButton.Content = "新增";
     }
 }
