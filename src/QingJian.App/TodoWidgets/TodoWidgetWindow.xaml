@@ -33,6 +33,7 @@
             </Grid.RowDefinitions>
 
             <DockPanel Grid.Row="0"
+                       Background="Transparent"
                        MouseLeftButtonDown="DragHandle_OnMouseLeftButtonDown"
                        MouseMove="DragHandle_OnMouseMove"
                        MouseLeftButtonUp="DragHandle_OnMouseLeftButtonUp">

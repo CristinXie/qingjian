@@ -50,6 +50,7 @@ public sealed class TodoWidgetCoordinator
     {
         EnsureWindow();
         _window!.Show();
+        _window.MoveBehindOtherWindows();
         await _viewModel!.LoadAsync(cancellationToken);
         await SavePreferencesAsync(cancellationToken);
     }
@@ -116,4 +117,6 @@ public interface ITodoWidgetWindow
     void Show();
 
     void Hide();
+
+    void MoveBehindOtherWindows();
 }

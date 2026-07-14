@@ -88,6 +88,7 @@ public sealed class TodoWidgetWindowXamlTests
 
         Assert.Equal("DragHandle_OnMouseMove", (string?)dragHandle.Attribute("MouseMove"));
         Assert.Equal("DragHandle_OnMouseLeftButtonUp", (string?)dragHandle.Attribute("MouseLeftButtonUp"));
+        Assert.Equal("Transparent", (string?)dragHandle.Attribute("Background"));
         Assert.DoesNotContain("DragMove()", source, StringComparison.Ordinal);
     }
 

@@ -33,7 +33,7 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
     private void Window_OnSourceInitialized(object? sender, EventArgs e)
     {
         Topmost = false;
-        _windowZOrderService.MoveBehindOtherWindows(this);
+        MoveBehindOtherWindows();
     }
 
     private void Window_OnMouseEnter(object sender, MouseEventArgs e)
@@ -88,7 +88,7 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
 
         EndDrag(sender);
         _ = _coordinator.SavePreferencesAsync();
-        _windowZOrderService.MoveBehindOtherWindows(this);
+        MoveBehindOtherWindows();
     }
 
     private void EndDrag(object sender)
@@ -98,6 +98,11 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
         {
             element.ReleaseMouseCapture();
         }
+    }
+
+    public void MoveBehindOtherWindows()
+    {
+        _windowZOrderService.MoveBehindOtherWindows(this);
     }
 
     private async void EightDayButton_OnClick(object sender, RoutedEventArgs e)

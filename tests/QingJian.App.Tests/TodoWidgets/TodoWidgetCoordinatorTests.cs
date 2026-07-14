@@ -32,6 +32,7 @@ public sealed class TodoWidgetCoordinatorTests
 
         Assert.NotNull(window);
         Assert.True(window.IsVisible);
+        Assert.Equal(1, window.MoveBehindOtherWindowsCalls);
         Assert.Equal(1, todoService.InitializeCalls);
         Assert.Equal(1, todoService.GetTodosCalls);
         Assert.True(settings.TodoWidget.IsVisible);
@@ -61,6 +62,13 @@ public sealed class TodoWidgetCoordinatorTests
         public void Hide()
         {
             IsVisible = false;
+        }
+
+        public int MoveBehindOtherWindowsCalls { get; private set; }
+
+        public void MoveBehindOtherWindows()
+        {
+            MoveBehindOtherWindowsCalls++;
         }
     }
 
