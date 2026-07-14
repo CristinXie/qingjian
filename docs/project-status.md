@@ -47,7 +47,7 @@ The app currently supports a local notes workflow:
   - `MainWindow.xaml` and `MainWindow.xaml.cs` host the primary UI and bridge WPF with the WebView2 Markdown editor.
 
 - `src/QingJian.App/TodoWidgets/`
-  - Desktop todo widget coordinator, desktop-layer attachment helper, widget view model, converters, and WPF window.
+  - Desktop todo widget coordinator, bottom Z-order helper, widget view model, converters, and borderless WPF window.
 
 - `src/QingJian.App/Editor/`
   - `EditorMessage`: parses messages posted from the WebView editor.
@@ -141,6 +141,7 @@ The app currently supports a local notes workflow:
 - Repeating todos and cross-day todos are postponed.
 - Desktop todo size presets are postponed; first version uses a fixed widget size.
 - A full main-window todo management page is postponed; first version edits todos from the widget.
+- Desktop todo does not attach to the Windows desktop WorkerW/Progman layer. It uses a borderless ordinary WPF window moved to the bottom of the normal window Z order to simulate staying on the desktop.
 
 ## Validation Commands
 

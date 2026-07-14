@@ -41,7 +41,7 @@ public partial class App : Application
         _todoWidgetCoordinator = new TodoWidgetCoordinator(
             todoService,
             settingsService,
-            new DesktopLayerService());
+            new WindowZOrderService());
 
         var window = new MainWindow(viewModel, settingsService, attachmentService, _todoWidgetCoordinator);
         MainWindow = window;

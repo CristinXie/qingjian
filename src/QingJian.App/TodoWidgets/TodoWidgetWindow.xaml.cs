@@ -9,7 +9,7 @@ namespace QingJian.App.TodoWidgets;
 public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
 {
     private readonly TodoWidgetViewModel _viewModel;
-    private readonly DesktopLayerService _desktopLayerService;
+    private readonly WindowZOrderService _windowZOrderService;
     private readonly TodoWidgetCoordinator _coordinator;
     private TodoItem? _editingTodo;
     private bool _isHidingFromButton;
@@ -20,22 +20,20 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
 
     public TodoWidgetWindow(
         TodoWidgetViewModel viewModel,
-        DesktopLayerService desktopLayerService,
+        WindowZOrderService windowZOrderService,
         TodoWidgetCoordinator coordinator)
     {
         InitializeComponent();
         _viewModel = viewModel;
-        _desktopLayerService = desktopLayerService;
+        _windowZOrderService = windowZOrderService;
         _coordinator = coordinator;
         DataContext = _viewModel;
     }
 
     private void Window_OnSourceInitialized(object? sender, EventArgs e)
     {
-        if (!_desktopLayerService.TryAttachToDesktop(this))
-        {
-            Topmost = false;
-        }
+        Topmost = false;
+        _windowZOrderService.MoveBehindOtherWindows(this);
     }
 
     private void Window_OnMouseEnter(object sender, MouseEventArgs e)
@@ -90,6 +88,7 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
 
         EndDrag(sender);
         _ = _coordinator.SavePreferencesAsync();
+        _windowZOrderService.MoveBehindOtherWindows(this);
     }
 
     private void EndDrag(object sender)

@@ -15,19 +15,17 @@ public sealed class TodoWidgetCoordinator
     public TodoWidgetCoordinator(
         ITodoService todoService,
         AppSettingsService settingsService,
-        DesktopLayerService desktopLayerService)
+        WindowZOrderService windowZOrderService)
         : this(
             todoService,
             settingsService,
-            desktopLayerService,
-            (viewModel, coordinator) => new TodoWidgetWindow(viewModel, desktopLayerService, coordinator))
+            (viewModel, coordinator) => new TodoWidgetWindow(viewModel, windowZOrderService, coordinator))
     {
     }
 
     public TodoWidgetCoordinator(
         ITodoService todoService,
         AppSettingsService settingsService,
-        DesktopLayerService desktopLayerService,
         Func<TodoWidgetViewModel, TodoWidgetCoordinator, ITodoWidgetWindow> windowFactory)
     {
         _todoService = todoService;

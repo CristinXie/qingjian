@@ -20,7 +20,6 @@ public sealed class TodoWidgetCoordinatorTests
         var coordinator = new TodoWidgetCoordinator(
             todoService,
             settingsService,
-            new DesktopLayerService(),
             (viewModel, _) =>
             {
                 window = new FakeTodoWidgetWindow();
