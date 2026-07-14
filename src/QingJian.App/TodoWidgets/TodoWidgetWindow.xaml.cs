@@ -13,6 +13,10 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
     private readonly TodoWidgetCoordinator _coordinator;
     private TodoItem? _editingTodo;
     private bool _isHidingFromButton;
+    private bool _isDragging;
+    private Point _dragStartScreenPosition;
+    private double _dragStartLeft;
+    private double _dragStartTop;
 
     public TodoWidgetWindow(
         TodoWidgetViewModel viewModel,
@@ -51,8 +55,50 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
             return;
         }
 
-        DragMove();
+        _isDragging = true;
+        _dragStartScreenPosition = PointToScreen(e.GetPosition(this));
+        _dragStartLeft = Left;
+        _dragStartTop = Top;
+        ((UIElement)sender).CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void DragHandle_OnMouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_isDragging)
+        {
+            return;
+        }
+
+        if (e.LeftButton != MouseButtonState.Pressed || _viewModel.IsLocked)
+        {
+            EndDrag(sender);
+            return;
+        }
+
+        var currentPosition = PointToScreen(e.GetPosition(this));
+        Left = _dragStartLeft + currentPosition.X - _dragStartScreenPosition.X;
+        Top = _dragStartTop + currentPosition.Y - _dragStartScreenPosition.Y;
+    }
+
+    private void DragHandle_OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_isDragging)
+        {
+            return;
+        }
+
+        EndDrag(sender);
         _ = _coordinator.SavePreferencesAsync();
+    }
+
+    private void EndDrag(object sender)
+    {
+        _isDragging = false;
+        if (sender is UIElement element && element.IsMouseCaptured)
+        {
+            element.ReleaseMouseCapture();
+        }
     }
 
     private async void EightDayButton_OnClick(object sender, RoutedEventArgs e)

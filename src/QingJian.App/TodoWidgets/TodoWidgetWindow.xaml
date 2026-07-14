@@ -32,7 +32,9 @@
             </Grid.RowDefinitions>
 
             <DockPanel Grid.Row="0"
-                       MouseLeftButtonDown="DragHandle_OnMouseLeftButtonDown">
+                       MouseLeftButtonDown="DragHandle_OnMouseLeftButtonDown"
+                       MouseMove="DragHandle_OnMouseMove"
+                       MouseLeftButtonUp="DragHandle_OnMouseLeftButtonUp">
                 <StackPanel Orientation="Horizontal">
                     <Button Content="8日" Click="EightDayButton_OnClick" />
                     <Button Content="今日" Margin="6,0,0,0" Click="TodayButton_OnClick" />
