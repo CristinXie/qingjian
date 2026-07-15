@@ -133,6 +133,19 @@ public sealed class TodoWidgetWindowXamlTests
         Assert.DoesNotContain("DragMove()", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Window_RestoresWhenSystemMinimizedByShowDesktop()
+    {
+        var xaml = XDocument.Load(FindTodoWidgetWindowXamlPath());
+        var source = File.ReadAllText(FindTodoWidgetWindowCodeBehindPath());
+        var window = xaml.Root ?? throw new InvalidOperationException("Todo widget XAML has no root element.");
+
+        Assert.Equal("Window_OnStateChanged", (string?)window.Attribute("StateChanged"));
+        Assert.Contains("Window_OnStateChanged", source, StringComparison.Ordinal);
+        Assert.Contains("TodoWidgetMinimizeRestorer.ShouldRestore", source, StringComparison.Ordinal);
+        Assert.Contains("MoveBehindOtherWindows();", source, StringComparison.Ordinal);
+    }
+
     private static string FindTodoWidgetWindowXamlPath()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

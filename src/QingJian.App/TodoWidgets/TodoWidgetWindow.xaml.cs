@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Input;
+using System.Windows.Threading;
 using QingJian.App.Models;
 
 namespace QingJian.App.TodoWidgets;
@@ -14,6 +15,7 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
     private readonly TodoWidgetCoordinator _coordinator;
     private TodoItem? _editingTodo;
     private bool _isHidingFromButton;
+    private bool _isRestoringFromSystemMinimize;
     private bool _isDragging;
     private Point _dragStartScreenPosition;
     private double _dragStartLeft;
@@ -35,6 +37,26 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
     {
         Topmost = false;
         MoveBehindOtherWindows();
+    }
+
+    private void Window_OnStateChanged(object? sender, EventArgs e)
+    {
+        if (_isRestoringFromSystemMinimize ||
+            !TodoWidgetMinimizeRestorer.ShouldRestore(WindowState, _isHidingFromButton))
+        {
+            return;
+        }
+
+        _isRestoringFromSystemMinimize = true;
+        Dispatcher.BeginInvoke(RestoreFromSystemMinimize, DispatcherPriority.Background);
+    }
+
+    private void RestoreFromSystemMinimize()
+    {
+        WindowState = WindowState.Normal;
+        Show();
+        MoveBehindOtherWindows();
+        _isRestoringFromSystemMinimize = false;
     }
 
     private void Window_OnMouseEnter(object sender, MouseEventArgs e)

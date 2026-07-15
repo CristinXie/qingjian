@@ -14,6 +14,7 @@
         MouseEnter="Window_OnMouseEnter"
         MouseLeave="Window_OnMouseLeave"
         SourceInitialized="Window_OnSourceInitialized"
+        StateChanged="Window_OnStateChanged"
         Closing="Window_OnClosing">
     <Window.Resources>
         <todo:TodoItemsForDateConverter x:Key="TodoItemsForDateConverter" />
