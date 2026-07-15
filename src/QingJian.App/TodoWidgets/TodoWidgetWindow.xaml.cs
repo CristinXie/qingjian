@@ -79,6 +79,11 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
         if (_isRestoringFromSystemMinimize ||
             !TodoWidgetMinimizeRestorer.ShouldRestore(WindowState, _isHidingFromButton, IsVisible))
         {
+            if (IsVisible && !_isHidingFromButton)
+            {
+                MoveBehindOtherWindows();
+            }
+
             return;
         }
 
