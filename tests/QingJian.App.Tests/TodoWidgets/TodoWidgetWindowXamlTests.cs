@@ -66,6 +66,47 @@ public sealed class TodoWidgetWindowXamlTests
     }
 
     [Fact]
+    public void PopoverTodoTextInput_HasVisibleContentField()
+    {
+        var xaml = XDocument.Load(FindTodoWidgetWindowXamlPath());
+        var todoTextBox = xaml
+            .Descendants()
+            .Single(element => element.Name.LocalName == "TextBox"
+                && (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "TodoTextBox");
+
+        Assert.Contains(
+            xaml.Descendants(),
+            element => element.Name.LocalName == "TextBlock"
+                && (string?)element.Attribute("Text") == "待办内容");
+        Assert.Equal("1", (string?)todoTextBox.Attribute("BorderThickness"));
+        Assert.Equal("#FFFFFF", (string?)todoTextBox.Attribute("Background"));
+        Assert.Equal("6,4", (string?)todoTextBox.Attribute("Padding"));
+        Assert.Equal("64", (string?)todoTextBox.Attribute("MinHeight"));
+    }
+
+    [Fact]
+    public void HideButton_IsOnlyVisibleWhenWidgetIsUnlocked()
+    {
+        var xaml = XDocument.Load(FindTodoWidgetWindowXamlPath());
+        var hideButton = xaml
+            .Descendants()
+            .Single(element => element.Name.LocalName == "Button"
+                && (string?)element.Attribute("Content") == "隐藏");
+        var lockTrigger = hideButton
+            .Descendants()
+            .Single(element => element.Name.LocalName == "DataTrigger"
+                && (string?)element.Attribute("Binding") == "{Binding IsLocked}"
+                && (string?)element.Attribute("Value") == "True");
+        var visibilitySetter = lockTrigger
+            .Descendants()
+            .Single(element => element.Name.LocalName == "Setter"
+                && (string?)element.Attribute("Property") == "Visibility");
+
+        Assert.Equal("HideButton", (string?)hideButton.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")));
+        Assert.Equal("Collapsed", (string?)visibilitySetter.Attribute("Value"));
+    }
+
+    [Fact]
     public void CalendarMode_RendersTodoMarkersWithoutTodoText()
     {
         var xaml = XDocument.Load(FindTodoWidgetWindowXamlPath());

@@ -49,7 +49,21 @@
                               Unchecked="LockCheckBox_OnChanged"
                               VerticalAlignment="Center"
                               Margin="0,0,8,0" />
-                    <Button Content="隐藏" Click="HideButton_OnClick" />
+                    <Button x:Name="HideButton"
+                            Content="隐藏"
+                            Click="HideButton_OnClick">
+                        <Button.Style>
+                            <Style TargetType="{x:Type Button}"
+                                   BasedOn="{StaticResource {x:Type Button}}">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsLocked}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                 </StackPanel>
             </DockPanel>
 
@@ -232,7 +246,7 @@
                                FontWeight="SemiBold"
                                Margin="0,0,0,8" />
                     <ListBox x:Name="PopoverTodoListBox"
-                             MaxHeight="116"
+                             MaxHeight="72"
                              BorderThickness="0"
                              Background="Transparent"
                              Margin="0,0,0,8">
@@ -256,9 +270,19 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+                    <TextBlock Text="待办内容"
+                               FontSize="12"
+                               Foreground="{StaticResource MutedTextBrush}"
+                               Margin="0,0,0,4" />
                     <TextBox x:Name="TodoTextBox"
-                             MinHeight="28"
-                             TextWrapping="Wrap" />
+                             MinHeight="64"
+                             Padding="6,4"
+                             BorderThickness="1"
+                             BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                             Background="#FFFFFF"
+                             TextWrapping="Wrap"
+                             AcceptsReturn="True"
+                             VerticalScrollBarVisibility="Auto" />
                     <ComboBox x:Name="TimeKindComboBox"
                               SelectedIndex="0"
                               Margin="0,8,0,0">
@@ -269,12 +293,22 @@
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                         <TextBox x:Name="StartTimeTextBox"
                                  Width="72"
+                                 Padding="6,4"
+                                 BorderThickness="1"
+                                 BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                                 Background="#FFFFFF"
+                                 AcceptsReturn="False"
                                  ToolTip="HH:mm" />
                         <TextBlock Text="-"
                                    Margin="6,0"
                                    VerticalAlignment="Center" />
                         <TextBox x:Name="EndTimeTextBox"
                                  Width="72"
+                                 Padding="6,4"
+                                 BorderThickness="1"
+                                 BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                                 Background="#FFFFFF"
+                                 AcceptsReturn="False"
                                  ToolTip="HH:mm" />
                     </StackPanel>
                     <TextBlock x:Name="PopoverErrorTextBlock"
