@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Input;
 using QingJian.App.Models;
 
@@ -75,8 +76,14 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
         }
 
         var currentPosition = PointToScreen(e.GetPosition(this));
-        Left = _dragStartLeft + currentPosition.X - _dragStartScreenPosition.X;
-        Top = _dragStartTop + currentPosition.Y - _dragStartScreenPosition.Y;
+        var windowPosition = TodoWidgetDragCalculator.CalculateWindowPosition(
+            _dragStartLeft,
+            _dragStartTop,
+            _dragStartScreenPosition,
+            currentPosition,
+            GetTransformFromDevice());
+        Left = windowPosition.X;
+        Top = windowPosition.Y;
     }
 
     private void DragHandle_OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -103,6 +110,11 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
     public void MoveBehindOtherWindows()
     {
         _windowZOrderService.MoveBehindOtherWindows(this);
+    }
+
+    private Matrix GetTransformFromDevice()
+    {
+        return PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
     }
 
     private async void EightDayButton_OnClick(object sender, RoutedEventArgs e)
