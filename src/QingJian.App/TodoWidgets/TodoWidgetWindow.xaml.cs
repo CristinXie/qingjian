@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using QingJian.App.Models;
+using ThreadingTimer = System.Threading.Timer;
 
 namespace QingJian.App.TodoWidgets;
 
@@ -15,7 +16,9 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
     private readonly WindowZOrderService _windowZOrderService;
     private readonly TodoWidgetCoordinator _coordinator;
     private readonly DispatcherTimer _minimizeRecoveryTimer;
+    private ThreadingTimer? _desktopOwnerAttachTimer;
     private HwndSource? _hwndSource;
+    private IntPtr _windowHandle;
     private TodoItem? _editingTodo;
     private bool _isHidingFromButton;
     private bool _isRestoringFromSystemMinimize;
@@ -41,14 +44,27 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
         };
         _minimizeRecoveryTimer.Tick += MinimizeRecoveryTimer_OnTick;
         _minimizeRecoveryTimer.Start();
+
     }
 
     private void Window_OnSourceInitialized(object? sender, EventArgs e)
     {
         _hwndSource = (HwndSource?)PresentationSource.FromVisual(this);
+        _windowHandle = _hwndSource?.Handle ?? IntPtr.Zero;
         _hwndSource?.AddHook(WndProc);
         Topmost = false;
+        _windowZOrderService.AttachToDesktopOwner(this);
         MoveBehindOtherWindows();
+        _desktopOwnerAttachTimer = new ThreadingTimer(
+            DesktopOwnerAttachTimer_OnTick,
+            null,
+            TimeSpan.FromMilliseconds(500),
+            TimeSpan.FromSeconds(2));
+    }
+
+    private void DesktopOwnerAttachTimer_OnTick(object? state)
+    {
+        _windowZOrderService.AttachToDesktopOwner(_windowHandle);
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -79,11 +95,6 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
         if (_isRestoringFromSystemMinimize ||
             !TodoWidgetMinimizeRestorer.ShouldRestore(WindowState, _isHidingFromButton, IsVisible))
         {
-            if (IsVisible && !_isHidingFromButton)
-            {
-                MoveBehindOtherWindows();
-            }
-
             return;
         }
 
@@ -281,8 +292,11 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
     private void Window_OnClosing(object? sender, CancelEventArgs e)
     {
         _minimizeRecoveryTimer.Stop();
+        _desktopOwnerAttachTimer?.Dispose();
+        _desktopOwnerAttachTimer = null;
         _hwndSource?.RemoveHook(WndProc);
         _hwndSource = null;
+        _windowHandle = IntPtr.Zero;
 
         if (_isHidingFromButton)
         {

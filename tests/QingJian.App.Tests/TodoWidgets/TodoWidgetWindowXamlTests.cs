@@ -146,6 +146,7 @@ public sealed class TodoWidgetWindowXamlTests
         Assert.Contains("MoveBehindOtherWindows();", source, StringComparison.Ordinal);
         Assert.Contains("DispatcherTimer", source, StringComparison.Ordinal);
         Assert.Contains("MinimizeRecoveryTimer_OnTick", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("if (IsVisible && !_isHidingFromButton)", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -156,6 +157,18 @@ public sealed class TodoWidgetWindowXamlTests
         Assert.Contains("AddHook(WndProc)", source, StringComparison.Ordinal);
         Assert.Contains("TodoWidgetWindowMessageFilter.ShouldBlockMinimize", source, StringComparison.Ordinal);
         Assert.Contains("handled = true", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Window_AttachesToDesktopOwnerWithoutBecomingDesktopChild()
+    {
+        var source = File.ReadAllText(FindTodoWidgetWindowCodeBehindPath());
+        var zOrderSource = File.ReadAllText(FindSourcePath("TodoWidgets", "WindowZOrderService.cs"));
+
+        Assert.Contains("AttachToDesktopOwner(this)", source, StringComparison.Ordinal);
+        Assert.Contains("GwlpHwndParent", zOrderSource, StringComparison.Ordinal);
+        Assert.Contains("SetWindowLong", zOrderSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetParent", zOrderSource, StringComparison.Ordinal);
     }
 
     private static string FindTodoWidgetWindowXamlPath()
@@ -204,5 +217,24 @@ public sealed class TodoWidgetWindowXamlTests
         }
 
         throw new FileNotFoundException("Could not find TodoWidgetWindow.xaml.cs from test output directory.");
+    }
+
+    private static string FindSourcePath(params string[] pathParts)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (directory is not null)
+        {
+            var path = Path.Combine(new[] { directory.FullName, "src", "QingJian.App" }.Concat(pathParts).ToArray());
+
+            if (File.Exists(path))
+            {
+                return path;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException($"Could not find {Path.Combine(pathParts)} from test output directory.");
     }
 }

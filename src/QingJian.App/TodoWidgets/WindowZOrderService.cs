@@ -8,7 +8,8 @@ namespace QingJian.App.TodoWidgets;
 public sealed class WindowZOrderService
 {
     private const string ProgmanClassName = "Progman";
-    private static readonly IntPtr HwndBottom = new(1);
+    private const int GwlpHwndParent = -8;
+    private const uint GwOwner = 4;
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoMove = 0x0002;
     private const uint SwpNoActivate = 0x0010;
@@ -22,10 +23,25 @@ public sealed class WindowZOrderService
             return false;
         }
 
-        var insertAfter = FindInsertAfterHandle(handle);
+        return MoveBehindOtherWindows(handle);
+    }
+
+    public bool MoveBehindOtherWindows(IntPtr handle)
+    {
+        if (handle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        var plan = CreateZOrderPlan(handle);
+        if (!plan.ShouldMove || plan.InsertAfterHandle is null)
+        {
+            return true;
+        }
+
         return SetWindowPos(
             handle,
-            insertAfter ?? HwndBottom,
+            plan.InsertAfterHandle.Value,
             0,
             0,
             0,
@@ -33,7 +49,35 @@ public sealed class WindowZOrderService
             SwpNoMove | SwpNoSize | SwpNoActivate | SwpNoOwnerZOrder);
     }
 
-    private static IntPtr? FindInsertAfterHandle(IntPtr widgetHandle)
+    public bool AttachToDesktopOwner(Window window)
+    {
+        var handle = new WindowInteropHelper(window).Handle;
+        if (handle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        return AttachToDesktopOwner(handle);
+    }
+
+    public bool AttachToDesktopOwner(IntPtr handle)
+    {
+        if (handle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        var desktopHandle = FindDesktopHandle();
+        if (desktopHandle is null)
+        {
+            return false;
+        }
+
+        SetWindowOwner(handle, desktopHandle.Value);
+        return GetWindow(handle, GwOwner) == desktopHandle.Value;
+    }
+
+    private static TodoWidgetZOrderPlan CreateZOrderPlan(IntPtr widgetHandle)
     {
         var zOrder = new List<IntPtr>();
         IntPtr? desktopHandle = null;
@@ -49,9 +93,25 @@ public sealed class WindowZOrderService
             return true;
         }, IntPtr.Zero);
 
-        return desktopHandle is null
-            ? null
-            : TodoWidgetZOrderPlanner.GetInsertAfterHandle(widgetHandle, desktopHandle.Value, zOrder);
+        return TodoWidgetZOrderPlanner.CreatePlan(widgetHandle, desktopHandle, zOrder);
+    }
+
+    private static IntPtr? FindDesktopHandle()
+    {
+        IntPtr? desktopHandle = null;
+
+        EnumWindows((handle, _) =>
+        {
+            if (GetWindowClassName(handle) == ProgmanClassName)
+            {
+                desktopHandle = handle;
+                return false;
+            }
+
+            return true;
+        }, IntPtr.Zero);
+
+        return desktopHandle;
     }
 
     private static string GetWindowClassName(IntPtr handle)
@@ -68,6 +128,22 @@ public sealed class WindowZOrderService
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetClassName(IntPtr hWnd, StringBuilder className, int maxCount);
+
+    private static IntPtr SetWindowOwner(IntPtr handle, IntPtr ownerHandle)
+    {
+        return IntPtr.Size == 8
+            ? SetWindowLongPtr64(handle, GwlpHwndParent, ownerHandle)
+            : new IntPtr(SetWindowLong32(handle, GwlpHwndParent, ownerHandle.ToInt32()));
+    }
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr", SetLastError = true)]
+    private static extern IntPtr SetWindowLongPtr64(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLong", SetLastError = true)]
+    private static extern int SetWindowLong32(IntPtr hWnd, int nIndex, int dwNewLong);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetWindowPos(

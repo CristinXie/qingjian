@@ -12,12 +12,14 @@ public sealed class TodoWidgetZOrderPlannerTests
         var desktopWindow = new IntPtr(20);
         var widgetWindow = new IntPtr(30);
 
-        var insertAfter = TodoWidgetZOrderPlanner.GetInsertAfterHandle(
+        var plan = TodoWidgetZOrderPlanner.CreatePlan(
             widgetWindow,
-            desktopWindow,
+            desktopWindow: desktopWindow,
             new[] { normalWindow, desktopWindow, widgetWindow });
 
-        Assert.Equal(normalWindow, insertAfter);
+        Assert.True(plan.ShouldMove);
+        Assert.False(plan.ShouldFallbackToBottom);
+        Assert.Equal(normalWindow, plan.InsertAfterHandle);
     }
 
     [Fact]
@@ -27,12 +29,14 @@ public sealed class TodoWidgetZOrderPlannerTests
         var widgetWindow = new IntPtr(20);
         var desktopWindow = new IntPtr(30);
 
-        var insertAfter = TodoWidgetZOrderPlanner.GetInsertAfterHandle(
+        var plan = TodoWidgetZOrderPlanner.CreatePlan(
             widgetWindow,
-            desktopWindow,
+            desktopWindow: desktopWindow,
             new[] { normalWindow, widgetWindow, desktopWindow });
 
-        Assert.Null(insertAfter);
+        Assert.False(plan.ShouldMove);
+        Assert.False(plan.ShouldFallbackToBottom);
+        Assert.Null(plan.InsertAfterHandle);
     }
 
     [Fact]
@@ -41,11 +45,27 @@ public sealed class TodoWidgetZOrderPlannerTests
         var desktopWindow = new IntPtr(10);
         var widgetWindow = new IntPtr(20);
 
-        var insertAfter = TodoWidgetZOrderPlanner.GetInsertAfterHandle(
+        var plan = TodoWidgetZOrderPlanner.CreatePlan(
             widgetWindow,
-            desktopWindow,
+            desktopWindow: desktopWindow,
             new[] { desktopWindow, widgetWindow });
 
-        Assert.Equal(TodoWidgetZOrderPlanner.HwndTop, insertAfter);
+        Assert.True(plan.ShouldMove);
+        Assert.Equal(TodoWidgetZOrderPlanner.HwndTop, plan.InsertAfterHandle);
+    }
+
+    [Fact]
+    public void CreatePlan_FallsBackToBottomWhenDesktopCannotBeFound()
+    {
+        var widgetWindow = new IntPtr(20);
+
+        var plan = TodoWidgetZOrderPlanner.CreatePlan(
+            widgetWindow,
+            desktopWindow: null,
+            new[] { widgetWindow });
+
+        Assert.True(plan.ShouldMove);
+        Assert.True(plan.ShouldFallbackToBottom);
+        Assert.Equal(TodoWidgetZOrderPlanner.HwndBottom, plan.InsertAfterHandle);
     }
 }
