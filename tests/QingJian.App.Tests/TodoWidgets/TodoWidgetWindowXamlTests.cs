@@ -144,6 +144,18 @@ public sealed class TodoWidgetWindowXamlTests
         Assert.Contains("Window_OnStateChanged", source, StringComparison.Ordinal);
         Assert.Contains("TodoWidgetMinimizeRestorer.ShouldRestore", source, StringComparison.Ordinal);
         Assert.Contains("MoveBehindOtherWindows();", source, StringComparison.Ordinal);
+        Assert.Contains("DispatcherTimer", source, StringComparison.Ordinal);
+        Assert.Contains("MinimizeRecoveryTimer_OnTick", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Window_BlocksSystemMinimizeMessagesFromShowDesktop()
+    {
+        var source = File.ReadAllText(FindTodoWidgetWindowCodeBehindPath());
+
+        Assert.Contains("AddHook(WndProc)", source, StringComparison.Ordinal);
+        Assert.Contains("TodoWidgetWindowMessageFilter.ShouldBlockMinimize", source, StringComparison.Ordinal);
+        Assert.Contains("handled = true", source, StringComparison.Ordinal);
     }
 
     private static string FindTodoWidgetWindowXamlPath()

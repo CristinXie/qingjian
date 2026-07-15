@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Threading;
 using QingJian.App.Models;
 
@@ -13,6 +14,8 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
     private readonly TodoWidgetViewModel _viewModel;
     private readonly WindowZOrderService _windowZOrderService;
     private readonly TodoWidgetCoordinator _coordinator;
+    private readonly DispatcherTimer _minimizeRecoveryTimer;
+    private HwndSource? _hwndSource;
     private TodoItem? _editingTodo;
     private bool _isHidingFromButton;
     private bool _isRestoringFromSystemMinimize;
@@ -31,24 +34,55 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
         _windowZOrderService = windowZOrderService;
         _coordinator = coordinator;
         DataContext = _viewModel;
+
+        _minimizeRecoveryTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(250)
+        };
+        _minimizeRecoveryTimer.Tick += MinimizeRecoveryTimer_OnTick;
+        _minimizeRecoveryTimer.Start();
     }
 
     private void Window_OnSourceInitialized(object? sender, EventArgs e)
     {
+        _hwndSource = (HwndSource?)PresentationSource.FromVisual(this);
+        _hwndSource?.AddHook(WndProc);
         Topmost = false;
         MoveBehindOtherWindows();
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (TodoWidgetWindowMessageFilter.ShouldBlockMinimize(msg, wParam, _isHidingFromButton))
+        {
+            handled = true;
+            MoveBehindOtherWindows();
+        }
+
+        return IntPtr.Zero;
     }
 
     private void Window_OnStateChanged(object? sender, EventArgs e)
     {
         if (_isRestoringFromSystemMinimize ||
-            !TodoWidgetMinimizeRestorer.ShouldRestore(WindowState, _isHidingFromButton))
+            !TodoWidgetMinimizeRestorer.ShouldRestore(WindowState, _isHidingFromButton, IsVisible))
         {
             return;
         }
 
         _isRestoringFromSystemMinimize = true;
         Dispatcher.BeginInvoke(RestoreFromSystemMinimize, DispatcherPriority.Background);
+    }
+
+    private void MinimizeRecoveryTimer_OnTick(object? sender, EventArgs e)
+    {
+        if (_isRestoringFromSystemMinimize ||
+            !TodoWidgetMinimizeRestorer.ShouldRestore(WindowState, _isHidingFromButton, IsVisible))
+        {
+            return;
+        }
+
+        RestoreFromSystemMinimize();
     }
 
     private void RestoreFromSystemMinimize()
@@ -241,6 +275,10 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
 
     private void Window_OnClosing(object? sender, CancelEventArgs e)
     {
+        _minimizeRecoveryTimer.Stop();
+        _hwndSource?.RemoveHook(WndProc);
+        _hwndSource = null;
+
         if (_isHidingFromButton)
         {
             return;
