@@ -68,7 +68,12 @@ public void PopoverTodoRows_SeparateTimeContentAndActionsWithFixedGaps()
         .Single(element => element.Name.LocalName == "StackPanel"
             && (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PopoverTodoActionPanel");
 
-    Assert.Equal("Stretch", (string?)listBox.Attribute("HorizontalContentAlignment"));
+    var stretchSetter = listBox
+        .Descendants()
+        .Single(element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "HorizontalContentAlignment");
+
+    Assert.Equal("Stretch", (string?)stretchSetter.Attribute("Value"));
     Assert.Equal(new[] { "64", "12", "*", "12", "52" }, columns);
     Assert.Equal("0", (string?)timeText.Attribute("Grid.Column"));
     Assert.Equal("2", (string?)contentText.Attribute("Grid.Column"));
@@ -88,7 +93,17 @@ Expected: FAIL because the current row uses `DockPanel` and has no `PopoverTodoR
 
 - [ ] **Step 3: Replace the row template with a constrained grid**
 
-Set `HorizontalContentAlignment="Stretch"` on `PopoverTodoListBox` and replace its item-template root with:
+Add this item-container style to `PopoverTodoListBox` so generated `ListBoxItem` containers stretch their content:
+
+```xml
+<ListBox.ItemContainerStyle>
+    <Style TargetType="{x:Type ListBoxItem}">
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+</ListBox.ItemContainerStyle>
+```
+
+Replace the item-template root with:
 
 ```xml
 <Grid x:Name="PopoverTodoRowGrid" Margin="0,3">
