@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Web.WebView2.Core;
@@ -47,7 +48,9 @@ public partial class MainWindow : Window
         _todoWidgetCoordinator = todoWidgetCoordinator;
         DataContext = _viewModel;
         Loaded += OnLoaded;
+        Activated += (_, _) => _viewModel.RefreshNoteNavigation();
         Closing += OnClosing;
+        UpdateModeToggleToolTip();
         _viewModel.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(MainViewModel.SelectedNote))
@@ -66,6 +69,7 @@ public partial class MainWindow : Window
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         _currentEditorMode = (await _settingsService.LoadAsync()).EditorMode;
+        UpdateModeToggleToolTip();
         await InitializeMarkdownEditorAsync();
         await _viewModel.LoadAsync();
         UpdateTitlePlaceholderState();
@@ -101,7 +105,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"Unable to save the selected note before closing.\n\n{ex.Message}",
+                $"关闭前无法保存当前便签。\n\n{ex.Message}",
                 "QingJian",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
@@ -260,6 +264,8 @@ public partial class MainWindow : Window
 
         if (message.Type == EditorMessage.EditorModeChangedType)
         {
+            _currentEditorMode = message.EditorMode;
+            UpdateModeToggleToolTip();
             _ = SaveEditorModeAsync(message.EditorMode);
             return;
         }
@@ -336,6 +342,64 @@ public partial class MainWindow : Window
     {
         var settings = await _settingsService.SaveEditorModeAsync(editorMode);
         _currentEditorMode = settings.EditorMode;
+        UpdateModeToggleToolTip();
+    }
+
+    private async Task ExecuteEditorCommandAsync(string script)
+    {
+        if (!_isEditorReady || MarkdownWebView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await MarkdownWebView.ExecuteScriptAsync(script);
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    private async void ModeToggleButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        await ExecuteEditorCommandAsync("window.qingjianEditor.toggleMode();");
+    }
+
+    private async void UndoButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        await ExecuteEditorCommandAsync("window.qingjianEditor.undo();");
+    }
+
+    private async void RedoButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        await ExecuteEditorCommandAsync("window.qingjianEditor.redo();");
+    }
+
+    private void DeleteButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        var selectedNote = _viewModel.SelectedNote;
+        if (selectedNote is null)
+        {
+            return;
+        }
+
+        var result = MessageBox.Show(
+            this,
+            NoteDeletionConfirmation.BuildPrompt(selectedNote.Title),
+            "删除便签",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+
+        if (!NoteDeletionConfirmation.IsConfirmed(result) ||
+            !ReferenceEquals(_viewModel.SelectedNote, selectedNote) ||
+            !_viewModel.DeleteSelectedNoteCommand.CanExecute(null))
+        {
+            return;
+        }
+
+        _viewModel.DeleteSelectedNoteCommand.Execute(null);
     }
 
     private async Task SaveLocalImageAsync(EditorMessage message)
@@ -459,6 +523,19 @@ public partial class MainWindow : Window
         _isUpdatingTitlePlaceholder = false;
     }
 
+    private async void TitleTextBox_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Tab || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+        {
+            return;
+        }
+
+        UpdateTitleSource();
+        e.Handled = true;
+        MarkdownWebView.Focus();
+        await ExecuteEditorCommandAsync("window.qingjianEditor.focus();");
+    }
+
     private async void TitleTextBox_OnLostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
     {
         if (string.IsNullOrWhiteSpace(TitleTextBox.Text))
@@ -510,5 +587,12 @@ public partial class MainWindow : Window
     private Brush GetBrush(string key, Brush fallback)
     {
         return TryFindResource(key) as Brush ?? fallback;
+    }
+
+    private void UpdateModeToggleToolTip()
+    {
+        ModeToggleButton.ToolTip = _currentEditorMode == "markdown"
+            ? "切换到所见即所得"
+            : "切换到 Markdown";
     }
 }

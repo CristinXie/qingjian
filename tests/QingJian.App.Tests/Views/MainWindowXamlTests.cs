@@ -57,16 +57,64 @@ public sealed class MainWindowXamlTests
             .Where(element => element.Name.LocalName == "Button"
                 && (string?)element.Attribute("Content") == "新建便签")
             .ToArray();
-        var deleteButton = xaml
-            .Descendants()
-            .Single(element => element.Name.LocalName == "Button"
-                && (string?)element.Attribute("Content") == "删除");
+        var deleteButton = FindNamedElement(xaml, "Button", "DeleteButton");
 
         Assert.NotEmpty(newNoteButtons);
         Assert.All(
             newNoteButtons,
             button => Assert.Equal("{StaticResource PrimaryButtonStyle}", (string?)button.Attribute("Style")));
-        Assert.Equal("{StaticResource SubtleDangerButtonStyle}", (string?)deleteButton.Attribute("Style"));
+        Assert.Equal("{StaticResource DangerIconButtonStyle}", (string?)deleteButton.Attribute("Style"));
+    }
+
+    [Fact]
+    public void NoteList_UsesGroupedNavigationView()
+    {
+        var xaml = XDocument.Load(FindMainWindowXamlPath());
+        var listBox = xaml.Descendants().Single(element => element.Name.LocalName == "ListBox");
+
+        Assert.Equal("{Binding NotesView}", (string?)listBox.Attribute("ItemsSource"));
+        Assert.Contains(
+            listBox.Descendants(),
+            element => element.Name.LocalName == "GroupStyle.HeaderTemplate");
+    }
+
+    [Fact]
+    public void EditorActions_AppearInAgreedOrderWithSpacingAndImmediateTooltips()
+    {
+        var xaml = XDocument.Load(FindMainWindowXamlPath());
+        var expectedNames = new[] { "ModeToggleButton", "UndoButton", "RedoButton", "DeleteButton" };
+        var buttons = xaml.Descendants()
+            .Where(element => element.Name.LocalName == "Button")
+            .Where(element => expectedNames.Contains((string?)FindAttributeByLocalName(element, "Name")))
+            .ToArray();
+
+        Assert.Equal(expectedNames, buttons.Select(button => (string?)FindAttributeByLocalName(button, "Name")));
+        Assert.Null(buttons[0].Attribute("Margin"));
+        Assert.All(buttons.Skip(1), button => Assert.Equal("8,0,0,0", (string?)button.Attribute("Margin")));
+        Assert.All(
+            buttons,
+            button => Assert.Equal("0", (string?)FindAttributeByLocalName(button, "ToolTipService.InitialShowDelay")));
+        Assert.Equal("撤销", (string?)buttons[1].Attribute("ToolTip"));
+        Assert.Equal("恢复", (string?)buttons[2].Attribute("ToolTip"));
+        Assert.Equal("删除", (string?)buttons[3].Attribute("ToolTip"));
+        Assert.Equal("DeleteButton_OnClick", (string?)buttons[3].Attribute("Click"));
+        Assert.Null(buttons[3].Attribute("Command"));
+    }
+
+    [Fact]
+    public void EditorHeaderAndFooter_ExposeTabFlowAndCreationDate()
+    {
+        var xaml = XDocument.Load(FindMainWindowXamlPath());
+        var titleTextBox = FindNamedElement(xaml, "TextBox", "TitleTextBox");
+        var createdAtTextBlock = FindNamedElement(xaml, "TextBlock", "CreatedAtTextBlock");
+
+        Assert.Equal("TitleTextBox_OnPreviewKeyDown", (string?)titleTextBox.Attribute("PreviewKeyDown"));
+        Assert.Contains("SelectedNote.CreatedAt", (string?)createdAtTextBlock.Attribute("Text"));
+        Assert.Contains("NoteCreatedAtDisplayConverter", (string?)createdAtTextBlock.Attribute("Text"));
+        Assert.Contains(
+            xaml.Descendants(),
+            element => element.Name.LocalName == "NoteCreatedAtDisplayConverter"
+                && (string?)FindAttributeByLocalName(element, "Key") == "NoteCreatedAtDisplayConverter");
     }
 
     [Fact]
@@ -175,5 +223,12 @@ public sealed class MainWindowXamlTests
     private static XAttribute? FindAttributeByLocalName(XElement element, string localName)
     {
         return element.Attributes().SingleOrDefault(attribute => attribute.Name.LocalName == localName);
+    }
+
+    private static XElement FindNamedElement(XDocument document, string elementName, string name)
+    {
+        return document.Descendants().Single(element =>
+            element.Name.LocalName == elementName
+            && (string?)FindAttributeByLocalName(element, "Name") == name);
     }
 }

@@ -97,6 +97,24 @@
         <Setter Property="Foreground" Value="{StaticResource DangerTextBrush}" />
     </Style>
 
+    <Style x:Key="IconButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource RoundedButtonStyle}">
+        <Setter Property="Width" Value="32" />
+        <Setter Property="Height" Value="32" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    </Style>
+
+    <Style x:Key="DangerIconButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource IconButtonStyle}">
+        <Setter Property="Foreground" Value="{StaticResource DangerTextBrush}" />
+    </Style>
+
     <Style x:Key="NoteListBoxItemStyle" TargetType="ListBoxItem">
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Padding" Value="12,10" />
