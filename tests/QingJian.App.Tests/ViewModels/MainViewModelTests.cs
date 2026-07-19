@@ -1,6 +1,7 @@
 using QingJian.App.Models;
 using QingJian.App.Services;
 using QingJian.App.ViewModels;
+using System.Windows.Data;
 using Xunit;
 
 namespace QingJian.App.Tests.ViewModels;
@@ -138,6 +139,50 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task NotesView_GroupsAndSortsNotesByUpdatedAtDescending()
+    {
+        var now = new DateTime(2026, 7, 20, 12, 0, 0, DateTimeKind.Local);
+        var notes = new[]
+        {
+            CreateNote("last-year", "Last year", new DateTime(2025, 12, 31, 8, 0, 0, DateTimeKind.Local)),
+            CreateNote("today-old", "Today old", new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Local)),
+            CreateNote("june", "June", new DateTime(2026, 6, 19, 8, 0, 0, DateTimeKind.Local)),
+            CreateNote("yesterday", "Yesterday", new DateTime(2026, 7, 19, 8, 0, 0, DateTimeKind.Local)),
+            CreateNote("today-new", "Today new", new DateTime(2026, 7, 20, 10, 0, 0, DateTimeKind.Local))
+        };
+        var viewModel = new MainViewModel(new InMemoryNoteService(notes), TimeSpan.FromMilliseconds(700), () => now);
+
+        await viewModel.LoadAsync();
+
+        var groupNames = viewModel.NotesView.Groups!
+            .Cast<CollectionViewGroup>()
+            .Select(group => group.Name)
+            .ToArray();
+
+        Assert.Equal(new object[] { "今天", "过去30天", "6月", "2025年" }, groupNames);
+        Assert.Equal(new[] { "today-new", "today-old", "yesterday", "june", "last-year" },
+            viewModel.NotesView.Cast<Note>().Select(note => note.Id));
+    }
+
+    [Fact]
+    public async Task SaveSelectedNoteNowAsync_RefreshesNavigationGrouping()
+    {
+        var now = new DateTime(2026, 7, 20, 12, 0, 0, DateTimeKind.Local);
+        var note = CreateNote("note-1", "Original", new DateTime(2026, 6, 1, 8, 0, 0, DateTimeKind.Local));
+        var service = new InMemoryNoteService(note)
+        {
+            SavedUpdatedAt = now
+        };
+        var viewModel = new MainViewModel(service, TimeSpan.FromMilliseconds(700), () => now);
+        await viewModel.LoadAsync();
+
+        await viewModel.SaveSelectedNoteNowAsync();
+
+        var group = Assert.Single(viewModel.NotesView.Groups!.Cast<CollectionViewGroup>());
+        Assert.Equal("今天", group.Name);
+    }
+
+    [Fact]
     public async Task EditingSelectedNote_AutoSavesAfterDelay()
     {
         var note = CreateNote("note-1", "Original");
@@ -205,15 +250,17 @@ public sealed class MainViewModelTests
         Assert.False(viewModel.IsEmpty);
     }
 
-    private static Note CreateNote(string id, string title)
+    private static Note CreateNote(string id, string title, DateTime? updatedAt = null)
     {
+        var timestamp = updatedAt ?? DateTime.UtcNow;
+
         return new Note
         {
             Id = id,
             Title = title,
             Content = string.Empty,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
+            CreatedAt = timestamp,
+            UpdatedAt = timestamp,
             IsDeleted = false
         };
     }
@@ -230,6 +277,8 @@ public sealed class MainViewModelTests
         public List<string> DeletedIds { get; } = new();
 
         public List<string> SavedIds { get; } = new();
+
+        public DateTime? SavedUpdatedAt { get; init; }
 
         public Task InitializeAsync(CancellationToken cancellationToken = default)
         {
@@ -251,6 +300,11 @@ public sealed class MainViewModelTests
         public Task SaveNoteAsync(Note note, CancellationToken cancellationToken = default)
         {
             SavedIds.Add(note.Id);
+            if (SavedUpdatedAt is DateTime updatedAt)
+            {
+                note.UpdatedAt = updatedAt;
+            }
+
             return Task.CompletedTask;
         }
 

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Windows.Data;
 using QingJian.App.Models;
 using QingJian.App.Services;
 
@@ -15,19 +16,29 @@ public sealed class MainViewModel : ViewModelBase
     private bool _isLoadingSelection;
 
     public MainViewModel(INoteService noteService)
-        : this(noteService, TimeSpan.FromMilliseconds(700))
+        : this(noteService, TimeSpan.FromMilliseconds(700), () => DateTime.Now)
     {
     }
 
     public MainViewModel(INoteService noteService, TimeSpan autoSaveDelay)
+        : this(noteService, autoSaveDelay, () => DateTime.Now)
+    {
+    }
+
+    public MainViewModel(INoteService noteService, TimeSpan autoSaveDelay, Func<DateTime> localNow)
     {
         _noteService = noteService;
         _autoSaveDelay = autoSaveDelay;
+        NotesView = new ListCollectionView(Notes);
+        NotesView.SortDescriptions.Add(new SortDescription(nameof(Note.UpdatedAt), ListSortDirection.Descending));
+        NotesView.GroupDescriptions.Add(new NoteNavigationGroupDescription(localNow));
         NewNoteCommand = new AsyncRelayCommand(NewNoteAsync);
         DeleteSelectedNoteCommand = new AsyncRelayCommand(DeleteSelectedNoteAsync, () => SelectedNote is not null);
     }
 
     public ObservableCollection<Note> Notes { get; } = new();
+
+    public ListCollectionView NotesView { get; }
 
     public Note? SelectedNote
     {
@@ -84,6 +95,7 @@ public sealed class MainViewModel : ViewModelBase
                 Notes.Add(note);
             }
 
+            RefreshNoteNavigation();
             SelectedNote = Notes.FirstOrDefault();
             OnPropertyChanged(nameof(IsEmpty));
         }
@@ -98,6 +110,7 @@ public sealed class MainViewModel : ViewModelBase
     {
         var note = await _noteService.CreateNoteAsync();
         Notes.Insert(0, note);
+        RefreshNoteNavigation();
         SelectedNote = note;
         OnPropertyChanged(nameof(IsEmpty));
     }
@@ -114,6 +127,7 @@ public sealed class MainViewModel : ViewModelBase
 
         await _noteService.DeleteNoteAsync(note);
         Notes.Remove(note);
+        RefreshNoteNavigation();
 
         if (Notes.Count == 0)
         {
@@ -132,6 +146,7 @@ public sealed class MainViewModel : ViewModelBase
         var wasEmpty = IsEmpty;
 
         Notes.Insert(0, note);
+        RefreshNoteNavigation();
 
         if (select)
         {
@@ -154,6 +169,11 @@ public sealed class MainViewModel : ViewModelBase
         }
 
         return SaveSelectedNoteAsync(cancellationToken);
+    }
+
+    public void RefreshNoteNavigation()
+    {
+        NotesView.Refresh();
     }
 
     private void OnSelectedNotePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -196,6 +216,7 @@ public sealed class MainViewModel : ViewModelBase
 
         await _noteService.SaveNoteAsync(SelectedNote, cancellationToken);
         MoveSelectedNoteToTop();
+        RefreshNoteNavigation();
     }
 
     private void MoveSelectedNoteToTop()
