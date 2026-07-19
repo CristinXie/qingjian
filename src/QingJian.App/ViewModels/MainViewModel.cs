@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows.Data;
+using System.Windows.Threading;
 using QingJian.App.Models;
 using QingJian.App.Services;
 
@@ -10,6 +11,7 @@ public sealed class MainViewModel : ViewModelBase
 {
     private readonly INoteService _noteService;
     private readonly TimeSpan _autoSaveDelay;
+    private readonly object _notesSynchronization = new();
     private CancellationTokenSource? _autoSaveCancellation;
     private Note? _selectedNote;
     private bool _isBusy;
@@ -29,6 +31,7 @@ public sealed class MainViewModel : ViewModelBase
     {
         _noteService = noteService;
         _autoSaveDelay = autoSaveDelay;
+        BindingOperations.EnableCollectionSynchronization(Notes, _notesSynchronization);
         NotesView = new ListCollectionView(Notes);
         NotesView.SortDescriptions.Add(new SortDescription(nameof(Note.UpdatedAt), ListSortDirection.Descending));
         NotesView.GroupDescriptions.Add(new NoteNavigationGroupDescription(localNow));
@@ -67,7 +70,16 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
-    public bool IsEmpty => Notes.Count == 0;
+    public bool IsEmpty
+    {
+        get
+        {
+            lock (_notesSynchronization)
+            {
+                return Notes.Count == 0;
+            }
+        }
+    }
 
     public bool IsBusy
     {
@@ -89,10 +101,13 @@ public sealed class MainViewModel : ViewModelBase
             await _noteService.InitializeAsync(cancellationToken);
             var notes = await _noteService.GetActiveNotesAsync(cancellationToken);
 
-            Notes.Clear();
-            foreach (var note in notes)
+            lock (_notesSynchronization)
             {
-                Notes.Add(note);
+                Notes.Clear();
+                foreach (var note in notes)
+                {
+                    Notes.Add(note);
+                }
             }
 
             RefreshNoteNavigation();
@@ -109,7 +124,11 @@ public sealed class MainViewModel : ViewModelBase
     public async Task NewNoteAsync()
     {
         var note = await _noteService.CreateNoteAsync();
-        Notes.Insert(0, note);
+        lock (_notesSynchronization)
+        {
+            Notes.Insert(0, note);
+        }
+
         RefreshNoteNavigation();
         SelectedNote = note;
         OnPropertyChanged(nameof(IsEmpty));
@@ -122,20 +141,32 @@ public sealed class MainViewModel : ViewModelBase
             return;
         }
 
-        var index = Notes.IndexOf(SelectedNote);
         var note = SelectedNote;
+        int index;
+
+        lock (_notesSynchronization)
+        {
+            index = Notes.IndexOf(note);
+        }
 
         await _noteService.DeleteNoteAsync(note);
-        Notes.Remove(note);
+        lock (_notesSynchronization)
+        {
+            Notes.Remove(note);
+        }
+
         RefreshNoteNavigation();
 
-        if (Notes.Count == 0)
+        lock (_notesSynchronization)
         {
-            SelectedNote = null;
-        }
-        else
-        {
-            SelectedNote = Notes[Math.Min(index, Notes.Count - 1)];
+            if (Notes.Count == 0)
+            {
+                SelectedNote = null;
+            }
+            else
+            {
+                SelectedNote = Notes[Math.Min(index, Notes.Count - 1)];
+            }
         }
 
         OnPropertyChanged(nameof(IsEmpty));
@@ -145,7 +176,11 @@ public sealed class MainViewModel : ViewModelBase
     {
         var wasEmpty = IsEmpty;
 
-        Notes.Insert(0, note);
+        lock (_notesSynchronization)
+        {
+            Notes.Insert(0, note);
+        }
+
         RefreshNoteNavigation();
 
         if (select)
@@ -173,7 +208,13 @@ public sealed class MainViewModel : ViewModelBase
 
     public void RefreshNoteNavigation()
     {
-        NotesView.Refresh();
+        if (NotesView.Dispatcher.CheckAccess())
+        {
+            NotesView.Refresh();
+            return;
+        }
+
+        NotesView.Dispatcher.BeginInvoke(DispatcherPriority.DataBind, new Action(NotesView.Refresh));
     }
 
     private void OnSelectedNotePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -226,10 +267,13 @@ public sealed class MainViewModel : ViewModelBase
             return;
         }
 
-        var index = Notes.IndexOf(SelectedNote);
-        if (index > 0)
+        lock (_notesSynchronization)
         {
-            Notes.Move(index, 0);
+            var index = Notes.IndexOf(SelectedNote);
+            if (index > 0)
+            {
+                Notes.Move(index, 0);
+            }
         }
     }
 }

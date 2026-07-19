@@ -250,6 +250,19 @@ public sealed class MainViewModelTests
         Assert.False(viewModel.IsEmpty);
     }
 
+    [Fact]
+    public async Task AddSavedNote_AllowsInsertionAfterAsynchronousContinuation()
+    {
+        var added = CreateNote("added", "Added");
+        var viewModel = new MainViewModel(new InMemoryNoteService());
+
+        var exception = await Record.ExceptionAsync(() => Task.Run(() => viewModel.AddSavedNote(added, select: true)));
+
+        Assert.Null(exception);
+        Assert.Single(viewModel.Notes);
+        Assert.Same(added, viewModel.SelectedNote);
+    }
+
     private static Note CreateNote(string id, string title, DateTime? updatedAt = null)
     {
         var timestamp = updatedAt ?? DateTime.UtcNow;
