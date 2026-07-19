@@ -1,8 +1,8 @@
 # QingJian Project Status
 
-Last updated: 2026-07-14
+Last updated: 2026-07-19
 Stable branch: `develop`
-Latest feature merge at update time: `b77f5f1 merge: hotkey quick note feature`
+Latest feature merge at update time: `a88d550 merge: complete desktop todo widget`
 
 ## Purpose
 
@@ -21,6 +21,7 @@ The app currently supports a local notes workflow:
 - Persists data locally in SQLite.
 - Saves note changes automatically.
 - Uses a Toast UI based Markdown editor hosted in WebView2.
+- Provides a persistent desktop todo widget with shared 8-day, today-list, and monthly-calendar views.
 
 ## Current Architecture
 
@@ -47,7 +48,10 @@ The app currently supports a local notes workflow:
   - `MainWindow.xaml` and `MainWindow.xaml.cs` host the primary UI and bridge WPF with the WebView2 Markdown editor.
 
 - `src/QingJian.App/TodoWidgets/`
-  - Desktop todo widget coordinator, bottom Z-order helper, widget view model, converters, and borderless WPF window.
+  - `TodoWidgetCoordinator` owns startup restoration, visibility persistence, and window lifetime.
+  - `TodoWidgetViewModel` exposes the three shared-data modes, calendar navigation, and todo commands.
+  - `TodoWidgetWindow` is the borderless desktop-style WPF surface and owns transient popovers, drag handling, and mode-specific interaction.
+  - Focused helpers handle DPI-correct dragging, bottom Z-order placement, show-desktop recovery, popover positioning, display conversion, and draft validation.
 
 - `src/QingJian.App/Editor/`
   - `EditorMessage`: parses messages posted from the WebView editor.
@@ -116,13 +120,24 @@ The app currently supports a local notes workflow:
 
 - Todos are stored independently from notes in `TodoItems`.
 - QingJian shows a semi-transparent desktop todo widget by default on first launch after the feature is installed.
-- The main window can show or hide the widget.
-- The widget supports 8-day, today-list, and monthly-calendar presets.
-- The 8-day preset starts from yesterday and covers 8 consecutive days.
-- The monthly-calendar preset supports previous month, next month, and return to current month.
-- Widget editing supports add, edit, complete, delete, no-time todos, single-time todos, and time-range todos.
+- Later launches restore the prior visible or hidden state instead of always showing the widget.
+- The main window can show or hide the widget, and the widget exposes icon buttons for cycling modes, locking/unlocking, and hiding while unlocked.
+- The mode button cycles in the fixed order 8-day -> today-list -> monthly-calendar and previews the next mode in its tooltip.
+- All three modes share the same persisted todo data.
+- The 8-day preset is a 2x4 grid starting yesterday. Each day has quick add, wrapping checkbox/time/content previews, vertical overflow scrolling, and a click-opened management popover.
+- The today-list preset has centered quick add and rows for time, completion, wrapping content, edit, and delete, with vertical-only overflow scrolling.
+- The monthly-calendar preset supports previous month, next month, and return to current month. Dates outside the displayed month use muted text.
+- Calendar days expose quick add. Hovering a day for 2 seconds opens an interactive preview; moving between the day and preview keeps it open, and completion remains available from the preview.
+- Quick add and edit use separate hour/minute inputs and validate empty content, incomplete times, and invalid time ranges without hiding form actions.
+- Todos support no time, a single start time, or a start/end range.
+- Clicking the same 8-day/calendar date a second time closes its management popover.
+- Quick-add, management, and calendar-preview popovers close when modes change or the widget loses focus; unsaved form input is discarded.
 - Completed todos remain visible and move to the bottom of their day.
+- Completed preview text uses strikethrough in 8-day, today-list, and calendar-preview surfaces.
 - Widget visibility, mode, position, opacity, lock state, and calendar month are persisted in settings.
+- The widget is a normal borderless WPF window kept at the bottom of normal window Z order, not a WorkerW/Progman child.
+- Manual dragging is DPI-correct and available only while unlocked.
+- Show Desktop minimize messages are blocked/recovered so the widget remains available without the earlier wallpaper-blackout behavior.
 
 ## Known Decisions
 
@@ -142,6 +157,7 @@ The app currently supports a local notes workflow:
 - Desktop todo size presets are postponed; first version uses a fixed widget size.
 - A full main-window todo management page is postponed; first version edits todos from the widget.
 - Desktop todo does not attach to the Windows desktop WorkerW/Progman layer. It uses a borderless ordinary WPF window moved to the bottom of the normal window Z order to simulate staying on the desktop.
+- Eight-day hover preview is intentionally disabled; its normal rows and click-opened management popover provide those workflows.
 
 ## Validation Commands
 
@@ -162,6 +178,8 @@ dotnet run --project src\QingJian.App\QingJian.App.csproj
 
 If the app is already running, close it before building or testing to avoid `QingJian.App.exe` file locks.
 
+Latest verified desktop-widget merge baseline on 2026-07-19: 204 tests passing, Release build with 0 warnings and 0 errors.
+
 ## Branch Workflow
 
 - `develop` is the stable integration branch.
@@ -177,8 +195,9 @@ If the app is already running, close it before building or testing to avoid `Qin
 Current worktree layout at the time this document was updated:
 
 - Main workspace: `C:\Users\Cristin\Desktop\VibeCoding\qingjian`
-- Current branch in main workspace: `feature/desktop-todo-widget`
-- Active feature work is the desktop todo widget branch until it is merged back to `develop`.
+- Current branch in main workspace: `develop`
+- Desktop todo widget work from `feature/desktop-todo-widget` is merged into `develop` at `a88d550`.
+- Separate existing worktree: `C:\Users\Cristin\Desktop\VibeCoding\qingjian-ui-polish` on `feature/ui-polish`; do not modify or remove it from unrelated tasks.
 
 Always confirm the current layout with:
 
@@ -197,6 +216,8 @@ Use this at the start of a new task:
 
 ## Suggested Next Features
 
+- Desktop todo widget size presets.
+- Desktop todo reminders and notifications.
 - Font-size controls for selected text and future typing.
 - Shortcut settings page, including changing the quick-note hotkey.
 - Tray residency, if shortcuts should keep working after the main window is closed.

@@ -28,7 +28,9 @@ QingJian shows a semi-transparent desktop todo widget by default on first launch
 
 - The widget stores todos independently from notes.
 - The main window can show or hide the widget.
+- Subsequent app launches restore the widget's previous visible or hidden state.
 - The widget supports 8-day, today-list, and monthly-calendar presets.
+- A compact icon toolbar cycles modes, toggles lock state, and hides the widget while unlocked.
 - The 8-day preset starts from yesterday and shows 8 consecutive days.
 - The monthly-calendar preset supports previous month, next month, and return to current month.
 - Todos can be added, edited, completed, deleted, and assigned no time, a single time, or a time range from the widget.
