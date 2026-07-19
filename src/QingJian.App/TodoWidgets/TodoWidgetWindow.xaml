@@ -15,10 +15,21 @@
         MouseLeave="Window_OnMouseLeave"
         SourceInitialized="Window_OnSourceInitialized"
         StateChanged="Window_OnStateChanged"
+        Deactivated="Window_OnDeactivated"
         Closing="Window_OnClosing">
     <Window.Resources>
         <todo:TodoItemsForDateConverter x:Key="TodoItemsForDateConverter" />
         <todo:TodoTimeDisplayConverter x:Key="TodoTimeDisplayConverter" />
+        <todo:TodoPreviewDisplayConverter x:Key="TodoPreviewDisplayConverter" />
+        <todo:CalendarDateIsCurrentMonthConverter x:Key="CalendarDateIsCurrentMonthConverter" />
+        <Style x:Key="TodoWidgetIconButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
     </Window.Resources>
     <Border x:Name="RootBorder"
             Background="{StaticResource TodoWidgetBackgroundBrush}"
@@ -27,7 +38,7 @@
             CornerRadius="8"
             Opacity="{Binding Opacity}"
             Padding="10">
-        <Grid>
+        <Grid x:Name="MainLayoutGrid">
             <Grid.RowDefinitions>
                 <RowDefinition Height="32" />
                 <RowDefinition Height="*" />
@@ -38,24 +49,53 @@
                        MouseLeftButtonDown="DragHandle_OnMouseLeftButtonDown"
                        MouseMove="DragHandle_OnMouseMove"
                        MouseLeftButtonUp="DragHandle_OnMouseLeftButtonUp">
-                <StackPanel Orientation="Horizontal">
-                    <Button Content="8日" Click="EightDayButton_OnClick" />
-                    <Button Content="今日" Margin="6,0,0,0" Click="TodayButton_OnClick" />
-                    <Button Content="日历" Margin="6,0,0,0" Click="CalendarButton_OnClick" />
-                </StackPanel>
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                    <CheckBox Content="锁定"
-                              IsChecked="{Binding IsLocked, Mode=TwoWay}"
-                              Checked="LockCheckBox_OnChanged"
-                              Unchecked="LockCheckBox_OnChanged"
-                              VerticalAlignment="Center"
-                              Margin="0,0,8,0" />
+                <Grid x:Name="TodoWidgetToolbarButtons"
+                      HorizontalAlignment="Left">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="28" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="28" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="ModeSwitchButton"
+                            Grid.Column="0"
+                            Style="{StaticResource TodoWidgetIconButtonStyle}"
+                            ToolTip="{Binding ModeSwitchToolTip}"
+                            ToolTipService.InitialShowDelay="1000"
+                            Click="CycleModeButton_OnClick">
+                        <TextBlock Text="&#xE8AB;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="16" />
+                    </Button>
+                    <Button x:Name="LockButton"
+                            Grid.Column="2"
+                            Style="{StaticResource TodoWidgetIconButtonStyle}"
+                            ToolTip="{Binding LockActionToolTip}"
+                            ToolTipService.InitialShowDelay="500"
+                            Click="LockButton_OnClick">
+                        <TextBlock FontFamily="Segoe MDL2 Assets"
+                                   FontSize="16">
+                            <TextBlock.Style>
+                                <Style TargetType="{x:Type TextBlock}">
+                                    <Setter Property="Text" Value="&#xE785;" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsLocked}" Value="True">
+                                            <Setter Property="Text" Value="&#xE72E;" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Button>
                     <Button x:Name="HideButton"
-                            Content="隐藏"
+                            Grid.Column="4"
+                            ToolTip="隐藏"
+                            ToolTipService.InitialShowDelay="500"
                             Click="HideButton_OnClick">
                         <Button.Style>
                             <Style TargetType="{x:Type Button}"
-                                   BasedOn="{StaticResource {x:Type Button}}">
+                                   BasedOn="{StaticResource TodoWidgetIconButtonStyle}">
                                 <Setter Property="Visibility" Value="Visible" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsLocked}" Value="True">
@@ -64,8 +104,11 @@
                                 </Style.Triggers>
                             </Style>
                         </Button.Style>
+                        <TextBlock Text="&#xE890;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="16" />
                     </Button>
-                </StackPanel>
+                </Grid>
             </DockPanel>
 
             <Grid Grid.Row="1">
@@ -87,36 +130,79 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Margin="4"
+                            <Border x:Name="EightDayDateCell"
+                                    Margin="4"
                                     Padding="7"
                                     BorderBrush="{StaticResource TodoWidgetBorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="6"
-                                    MouseEnter="DateCell_OnMouseEnter"
-                                    MouseLeave="DateCell_OnMouseLeave"
                                     MouseLeftButtonDown="DateCell_OnMouseLeftButtonDown">
-                                <StackPanel>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="22" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
                                     <TextBlock Text="{Binding StringFormat={}{0:MM/dd}}"
-                                               FontWeight="SemiBold" />
-                                    <ItemsControl>
-                                        <ItemsControl.ItemsSource>
-                                            <MultiBinding Converter="{StaticResource TodoItemsForDateConverter}">
-                                                <Binding />
-                                                <Binding Path="DataContext.VisibleTodos"
-                                                         RelativeSource="{RelativeSource AncestorType=Window}" />
-                                            </MultiBinding>
-                                        </ItemsControl.ItemsSource>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <CheckBox Content="{Binding Text}"
-                                                          IsChecked="{Binding IsCompleted, Mode=OneWay}"
-                                                          Tag="{Binding}"
-                                                          Click="QuickCompleteTodoCheckBox_OnClick"
-                                                          FontSize="11" />
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center" />
+                                    <Button x:Name="EightDayQuickAddButton"
+                                            Content="+"
+                                            Tag="{Binding}"
+                                            Width="20"
+                                            Height="20"
+                                            MinHeight="0"
+                                            Padding="0"
+                                            FontSize="13"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Top"
+                                            Click="AddTodoForDateButton_OnClick" />
+                                    <ScrollViewer x:Name="EightDayTodoScrollViewer"
+                                                  Grid.Row="1"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Disabled"
+                                                  PanningMode="VerticalOnly">
+                                        <ItemsControl HorizontalContentAlignment="Stretch">
+                                            <ItemsControl.ItemsSource>
+                                                <MultiBinding Converter="{StaticResource TodoItemsForDateConverter}">
+                                                    <Binding />
+                                                    <Binding Path="DataContext.VisibleTodos"
+                                                             RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                </MultiBinding>
+                                            </ItemsControl.ItemsSource>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid x:Name="EightDayTodoPreviewRow" Margin="0,1">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="4" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <CheckBox Grid.Column="0"
+                                                                  IsChecked="{Binding IsCompleted, Mode=OneWay}"
+                                                                  Tag="{Binding}"
+                                                                  Click="QuickCompleteTodoCheckBox_OnClick"
+                                                                  VerticalAlignment="Top" />
+                                                        <TextBlock Grid.Column="2"
+                                                                   Text="{Binding Converter={StaticResource TodoPreviewDisplayConverter}}"
+                                                                   TextWrapping="Wrap"
+                                                                   FontSize="11"
+                                                                   VerticalAlignment="Top">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="{x:Type TextBlock}">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                                                            <Setter Property="TextDecorations" Value="Strikethrough" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Grid>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -135,26 +221,83 @@
                     </Style>
                 </Grid.Style>
                 <DockPanel>
-                    <Button DockPanel.Dock="Top"
-                            Content="编辑今日"
-                            HorizontalAlignment="Left"
-                            Margin="4,0,0,6"
-                            Click="OpenTodayPopoverButton_OnClick" />
-                    <ListBox ItemsSource="{Binding VisibleTodos}"
+                    <Button x:Name="TodayQuickAddButton"
+                            DockPanel.Dock="Top"
+                            Content="+"
+                            Width="24"
+                            Height="24"
+                            MinHeight="0"
+                            Padding="0"
+                            FontSize="15"
+                            HorizontalAlignment="Center"
+                            Margin="0,0,0,6"
+                            Click="AddTodayTodoButton_OnClick" />
+                    <ListBox x:Name="TodayTodoListBox"
+                             ItemsSource="{Binding VisibleTodos}"
                              BorderThickness="0"
-                             Background="Transparent">
+                             Background="Transparent"
+                             HorizontalContentAlignment="Stretch"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <DockPanel Margin="4">
-                                    <TextBlock DockPanel.Dock="Left"
-                                               Width="78"
+                                <Grid x:Name="TodayTodoRowGrid" Margin="4,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="80" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="52" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
                                                Foreground="{StaticResource MutedTextBrush}"
+                                               VerticalAlignment="Top"
                                                Text="{Binding Converter={StaticResource TodoTimeDisplayConverter}}" />
-                                    <CheckBox Content="{Binding Text}"
+                                    <CheckBox Grid.Column="2"
                                               IsChecked="{Binding IsCompleted, Mode=OneWay}"
                                               Tag="{Binding}"
-                                              Click="QuickCompleteTodoCheckBox_OnClick" />
-                                </DockPanel>
+                                              Click="QuickCompleteTodoCheckBox_OnClick"
+                                              VerticalAlignment="Top" />
+                                    <TextBlock Grid.Column="4"
+                                               Text="{Binding Text}"
+                                               TextWrapping="Wrap"
+                                               VerticalAlignment="Top">
+                                        <TextBlock.Style>
+                                            <Style TargetType="{x:Type TextBlock}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                                        <Setter Property="TextDecorations" Value="Strikethrough" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <StackPanel x:Name="TodayTodoActionPanel"
+                                                Grid.Column="6"
+                                                Orientation="Horizontal"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Top">
+                                        <Button Content="✎"
+                                                ToolTip="修改"
+                                                Width="24"
+                                                Height="24"
+                                                MinHeight="0"
+                                                Padding="0"
+                                                Tag="{Binding}"
+                                                Click="EditTodayTodoButton_OnClick" />
+                                        <Button Content="×"
+                                                ToolTip="删除"
+                                                Width="24"
+                                                Height="24"
+                                                MinHeight="0"
+                                                Padding="0"
+                                                Tag="{Binding}"
+                                                Margin="4,0,0,0"
+                                                Click="DeleteTodoButton_OnClick" />
+                                    </StackPanel>
+                                </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
@@ -192,16 +335,48 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Margin="2"
+                                <Border x:Name="CalendarDateCell"
+                                        Margin="2"
                                         Padding="4"
                                         BorderBrush="{StaticResource TodoWidgetBorderBrush}"
                                         BorderThickness="1"
                                         CornerRadius="4"
-                                        MouseEnter="DateCell_OnMouseEnter"
-                                        MouseLeave="DateCell_OnMouseLeave"
+                                        MouseEnter="CalendarDateCell_OnMouseEnter"
+                                        MouseLeave="CalendarDateCell_OnMouseLeave"
                                         MouseLeftButtonDown="DateCell_OnMouseLeftButtonDown">
                                     <Grid>
-                                        <TextBlock Text="{Binding Day}" FontSize="12" />
+                                        <TextBlock x:Name="CalendarDateNumber"
+                                                   Text="{Binding Day}"
+                                                   FontSize="12">
+                                            <TextBlock.Style>
+                                                <Style TargetType="{x:Type TextBlock}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Value="False">
+                                                            <DataTrigger.Binding>
+                                                                <MultiBinding Converter="{StaticResource CalendarDateIsCurrentMonthConverter}">
+                                                                    <Binding />
+                                                                    <Binding Path="DataContext.CalendarMonth"
+                                                                             RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                                </MultiBinding>
+                                                            </DataTrigger.Binding>
+                                                            <Setter Property="Foreground"
+                                                                    Value="{StaticResource MutedTextBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <Button x:Name="CalendarQuickAddButton"
+                                                Content="+"
+                                                Tag="{Binding}"
+                                                Width="18"
+                                                Height="18"
+                                                MinHeight="0"
+                                                Padding="0"
+                                                FontSize="12"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Top"
+                                                Click="AddTodoForDateButton_OnClick" />
                                         <ItemsControl HorizontalAlignment="Right"
                                                       VerticalAlignment="Bottom">
                                             <ItemsControl.ItemsSource>
@@ -230,95 +405,301 @@
                 </DockPanel>
             </Grid>
 
+            <Border x:Name="CalendarPreviewPopover"
+                    Grid.Row="1"
+                    Width="338"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Margin="0"
+                    Background="#FAF8F4"
+                    BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="10"
+                    Visibility="Collapsed"
+                    MouseLeave="CalendarPreviewPopover_OnMouseLeave">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="待办预览"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8" />
+                    <ListBox x:Name="CalendarPreviewTodoListBox"
+                             Grid.Row="1"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="{x:Type ListBoxItem}">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid x:Name="CalendarPreviewTodoRow" Margin="0,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="80" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox Grid.Column="0"
+                                              IsChecked="{Binding IsCompleted, Mode=OneWay}"
+                                              Tag="{Binding}"
+                                              Click="QuickCompleteTodoCheckBox_OnClick"
+                                              VerticalAlignment="Top" />
+                                    <TextBlock Grid.Column="2"
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               VerticalAlignment="Top"
+                                               Text="{Binding Converter={StaticResource TodoTimeDisplayConverter}}" />
+                                    <TextBlock Grid.Column="4"
+                                               Text="{Binding Text}"
+                                               TextWrapping="Wrap"
+                                               VerticalAlignment="Top">
+                                        <TextBlock.Style>
+                                            <Style TargetType="{x:Type TextBlock}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                                        <Setter Property="TextDecorations" Value="Strikethrough" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
             <Border x:Name="EditPopover"
                     Grid.Row="1"
-                    Width="260"
-                    HorizontalAlignment="Right"
+                    Width="338"
+                    HorizontalAlignment="Left"
                     VerticalAlignment="Top"
-                    Margin="0,24,8,0"
+                    Margin="0"
                     Background="#FAF8F4"
                     BorderBrush="{StaticResource TodoWidgetBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="8"
                     Padding="10"
                     Visibility="Collapsed">
-                <StackPanel>
-                    <TextBlock Text="编辑待办"
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition x:Name="PopoverTodoListRow" Height="*" />
+                        <RowDefinition x:Name="PopoverEditorRow" Height="0" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0"
+                               Text="编辑待办"
                                FontWeight="SemiBold"
                                Margin="0,0,0,8" />
                     <ListBox x:Name="PopoverTodoListBox"
-                             MaxHeight="72"
+                             Grid.Row="1"
                              BorderThickness="0"
                              Background="Transparent"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
                              Margin="0,0,0,8">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="{x:Type ListBoxItem}">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <DockPanel Margin="0,2">
-                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                        <Button Content="编辑"
+                                <Grid x:Name="PopoverTodoRowGrid" Margin="0,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="80" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="52" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               VerticalAlignment="Top"
+                                               Text="{Binding Converter={StaticResource TodoTimeDisplayConverter}}" />
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding Text}"
+                                               TextWrapping="Wrap"
+                                               VerticalAlignment="Top" />
+                                    <StackPanel x:Name="PopoverTodoActionPanel"
+                                                Grid.Column="4"
+                                                Orientation="Horizontal"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Top">
+                                        <Button Content="✎"
+                                                ToolTip="修改"
+                                                Width="24"
+                                                Height="24"
+                                                MinHeight="0"
+                                                Padding="0"
                                                 Tag="{Binding}"
                                                 Click="EditTodoButton_OnClick" />
-                                        <Button Content="删除"
+                                        <Button Content="×"
+                                                ToolTip="删除"
+                                                Width="24"
+                                                Height="24"
+                                                MinHeight="0"
+                                                Padding="0"
                                                 Tag="{Binding}"
                                                 Margin="4,0,0,0"
                                                 Click="DeleteTodoButton_OnClick" />
                                     </StackPanel>
-                                    <CheckBox Content="{Binding Text}"
-                                              IsChecked="{Binding IsCompleted, Mode=OneWay}"
-                                              Tag="{Binding}"
-                                              Click="CompleteTodoCheckBox_OnClick" />
-                                </DockPanel>
+                                </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
-                    <TextBlock Text="待办内容"
-                               FontSize="12"
-                               Foreground="{StaticResource MutedTextBrush}"
-                               Margin="0,0,0,4" />
-                    <TextBox x:Name="TodoTextBox"
-                             MinHeight="64"
-                             Padding="6,4"
-                             BorderThickness="1"
-                             BorderBrush="{StaticResource TodoWidgetBorderBrush}"
-                             Background="#FFFFFF"
-                             TextWrapping="Wrap"
-                             AcceptsReturn="True"
-                             VerticalScrollBarVisibility="Auto" />
-                    <ComboBox x:Name="TimeKindComboBox"
-                              SelectedIndex="0"
-                              Margin="0,8,0,0">
-                        <ComboBoxItem Content="无时间" />
-                        <ComboBoxItem Content="单时间" />
-                        <ComboBoxItem Content="时间段" />
-                    </ComboBox>
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                        <TextBox x:Name="StartTimeTextBox"
-                                 Width="72"
-                                 Padding="6,4"
-                                 BorderThickness="1"
-                                 BorderBrush="{StaticResource TodoWidgetBorderBrush}"
-                                 Background="#FFFFFF"
-                                 AcceptsReturn="False"
-                                 ToolTip="HH:mm" />
-                        <TextBlock Text="-"
-                                   Margin="6,0"
-                                   VerticalAlignment="Center" />
-                        <TextBox x:Name="EndTimeTextBox"
-                                 Width="72"
-                                 Padding="6,4"
-                                 BorderThickness="1"
-                                 BorderBrush="{StaticResource TodoWidgetBorderBrush}"
-                                 Background="#FFFFFF"
-                                 AcceptsReturn="False"
-                                 ToolTip="HH:mm" />
-                    </StackPanel>
-                    <TextBlock x:Name="PopoverErrorTextBlock"
-                               Foreground="{StaticResource TodoWidgetDangerBrush}"
-                               FontSize="12"
-                               TextWrapping="Wrap"
-                               Visibility="Collapsed"
-                               Margin="0,8,0,0" />
-                    <DockPanel Margin="0,10,0,0" LastChildFill="False">
+                    <Grid x:Name="PopoverEditorPanel"
+                          Grid.Row="2"
+                          Visibility="{Binding PopoverEditorVisibility, RelativeSource={RelativeSource AncestorType=Window}}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <ScrollViewer x:Name="EditPopoverEditorScrollViewer"
+                                      Grid.Row="0"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel>
+                                <TextBlock Text="待办内容"
+                                           FontSize="12"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           Margin="0,0,0,4" />
+                                <TextBox x:Name="TodoTextBox"
+                                         MinHeight="64"
+                                         Padding="6,4"
+                                         BorderThickness="1"
+                                         BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                                         Background="#FFFFFF"
+                                         TextWrapping="Wrap"
+                                         AcceptsReturn="True"
+                                         VerticalScrollBarVisibility="Auto"
+                                         TextChanged="EditField_OnChanged" />
+                                <TextBlock Text="时间"
+                                           FontSize="12"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           Margin="0,8,0,4" />
+                                <Border x:Name="EditTimePickerBorder"
+                            BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Background="#FFFFFF"
+                            Padding="6,5">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="开始"
+                                           FontSize="11"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           Margin="0,0,0,4" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox x:Name="EditStartHourTextBox"
+                                             Width="38"
+                                             Height="34"
+                                             MaxLength="2"
+                                             Padding="0"
+                                             BorderThickness="1"
+                                             BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                                             Background="#FFFFFF"
+                                             TextAlignment="Center"
+                                             VerticalContentAlignment="Center"
+                                             AcceptsReturn="False"
+                                             TextWrapping="NoWrap"
+                                             VerticalScrollBarVisibility="Disabled"
+                                             ToolTip="小时"
+                                             TextChanged="EditField_OnChanged" />
+                                    <TextBlock Text=":"
+                                               Margin="5,0"
+                                               FontSize="18"
+                                               VerticalAlignment="Center" />
+                                    <TextBox x:Name="EditStartMinuteTextBox"
+                                             Width="38"
+                                             Height="34"
+                                             MaxLength="2"
+                                             Padding="0"
+                                             BorderThickness="1"
+                                             BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                                             Background="#FFFFFF"
+                                             TextAlignment="Center"
+                                             VerticalContentAlignment="Center"
+                                             AcceptsReturn="False"
+                                             TextWrapping="NoWrap"
+                                             VerticalScrollBarVisibility="Disabled"
+                                             ToolTip="分钟"
+                                             TextChanged="EditField_OnChanged" />
+                                </StackPanel>
+                            </StackPanel>
+                            <TextBlock Grid.Column="1"
+                                       Text="-"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="结束"
+                                           FontSize="11"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           Margin="0,0,0,4" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox x:Name="EditEndHourTextBox"
+                                             Width="38"
+                                             Height="34"
+                                             MaxLength="2"
+                                             Padding="0"
+                                             BorderThickness="1"
+                                             BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                                             Background="#FFFFFF"
+                                             TextAlignment="Center"
+                                             VerticalContentAlignment="Center"
+                                             AcceptsReturn="False"
+                                             TextWrapping="NoWrap"
+                                             VerticalScrollBarVisibility="Disabled"
+                                             ToolTip="小时"
+                                             TextChanged="EditField_OnChanged" />
+                                    <TextBlock Text=":"
+                                               Margin="5,0"
+                                               FontSize="18"
+                                               VerticalAlignment="Center" />
+                                    <TextBox x:Name="EditEndMinuteTextBox"
+                                             Width="38"
+                                             Height="34"
+                                             MaxLength="2"
+                                             Padding="0"
+                                             BorderThickness="1"
+                                             BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                                             Background="#FFFFFF"
+                                             TextAlignment="Center"
+                                             VerticalContentAlignment="Center"
+                                             AcceptsReturn="False"
+                                             TextWrapping="NoWrap"
+                                             VerticalScrollBarVisibility="Disabled"
+                                             ToolTip="分钟"
+                                             TextChanged="EditField_OnChanged" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                                </Border>
+                                <TextBlock x:Name="PopoverErrorTextBlock"
+                                           Foreground="{StaticResource TodoWidgetDangerBrush}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Visibility="Collapsed"
+                                           Margin="0,8,0,0" />
+                            </StackPanel>
+                        </ScrollViewer>
+                        <DockPanel x:Name="EditPopoverFooterPanel"
+                                   Grid.Row="1"
+                                   Margin="0,10,0,0"
+                                   LastChildFill="False">
                         <Button x:Name="SaveTodoButton"
                                 Content="新增"
                                 DockPanel.Dock="Right"
@@ -331,6 +712,167 @@
                                 DockPanel.Dock="Right"
                                 Margin="0,0,8,0"
                                 Click="ClosePopoverButton_OnClick" />
+                        </DockPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Border x:Name="QuickAddPopover"
+                    Grid.Row="1"
+                    Width="260"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Margin="0"
+                    Background="#FAF8F4"
+                    BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="10"
+                    Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock Text="新增待办"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8" />
+                    <TextBlock Text="待办内容"
+                               FontSize="12"
+                               Foreground="{StaticResource MutedTextBrush}"
+                               Margin="0,0,0,4" />
+                    <TextBox x:Name="QuickAddTextBox"
+                             MinHeight="70"
+                             Padding="6,4"
+                             BorderThickness="1"
+                             BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                             Background="#FFFFFF"
+                             TextWrapping="Wrap"
+                             AcceptsReturn="True"
+                             VerticalScrollBarVisibility="Auto"
+                             TextChanged="QuickAddField_OnChanged" />
+                    <TextBlock x:Name="QuickAddTextErrorTextBlock"
+                               Foreground="{StaticResource TodoWidgetDangerBrush}"
+                               FontSize="12"
+                               TextWrapping="Wrap"
+                               Visibility="Collapsed"
+                               Margin="0,4,0,0" />
+                    <TextBlock Text="时间"
+                               FontSize="12"
+                               Foreground="{StaticResource MutedTextBrush}"
+                               Margin="0,8,0,4" />
+                    <Border x:Name="QuickAddTimePickerBorder"
+                            BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Background="#FFFFFF"
+                            Padding="6,5">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="开始"
+                                           FontSize="11"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           Margin="0,0,0,4" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox x:Name="QuickAddStartHourTextBox"
+                                             Width="38"
+                                             Height="34"
+                                             MaxLength="2"
+                                             Padding="0"
+                                             BorderThickness="1"
+                                             BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                                             Background="#FFFFFF"
+                                             TextAlignment="Center"
+                                             VerticalContentAlignment="Center"
+                                             AcceptsReturn="False"
+                                             TextWrapping="NoWrap"
+                                             VerticalScrollBarVisibility="Disabled"
+                                             ToolTip="小时"
+                                             TextChanged="QuickAddField_OnChanged" />
+                                    <TextBlock Text=":"
+                                               Margin="5,0"
+                                               FontSize="18"
+                                               VerticalAlignment="Center" />
+                                    <TextBox x:Name="QuickAddStartMinuteTextBox"
+                                             Width="38"
+                                             Height="34"
+                                             MaxLength="2"
+                                             Padding="0"
+                                             BorderThickness="1"
+                                             BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                                             Background="#FFFFFF"
+                                             TextAlignment="Center"
+                                             VerticalContentAlignment="Center"
+                                             AcceptsReturn="False"
+                                             TextWrapping="NoWrap"
+                                             VerticalScrollBarVisibility="Disabled"
+                                             ToolTip="分钟"
+                                             TextChanged="QuickAddField_OnChanged" />
+                                </StackPanel>
+                            </StackPanel>
+                            <TextBlock Grid.Column="1"
+                                       Text="-"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="结束"
+                                           FontSize="11"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           Margin="0,0,0,4" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox x:Name="QuickAddEndHourTextBox"
+                                             Width="38"
+                                             Height="34"
+                                             MaxLength="2"
+                                             Padding="0"
+                                             BorderThickness="1"
+                                             BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                                             Background="#FFFFFF"
+                                             TextAlignment="Center"
+                                             VerticalContentAlignment="Center"
+                                             AcceptsReturn="False"
+                                             TextWrapping="NoWrap"
+                                             VerticalScrollBarVisibility="Disabled"
+                                             ToolTip="小时"
+                                             TextChanged="QuickAddField_OnChanged" />
+                                    <TextBlock Text=":"
+                                               Margin="5,0"
+                                               FontSize="18"
+                                               VerticalAlignment="Center" />
+                                    <TextBox x:Name="QuickAddEndMinuteTextBox"
+                                             Width="38"
+                                             Height="34"
+                                             MaxLength="2"
+                                             Padding="0"
+                                             BorderThickness="1"
+                                             BorderBrush="{StaticResource TodoWidgetBorderBrush}"
+                                             Background="#FFFFFF"
+                                             TextAlignment="Center"
+                                             VerticalContentAlignment="Center"
+                                             AcceptsReturn="False"
+                                             TextWrapping="NoWrap"
+                                             VerticalScrollBarVisibility="Disabled"
+                                             ToolTip="分钟"
+                                             TextChanged="QuickAddField_OnChanged" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <TextBlock x:Name="QuickAddTimeErrorTextBlock"
+                               Foreground="{StaticResource TodoWidgetDangerBrush}"
+                               FontSize="12"
+                               TextWrapping="Wrap"
+                               Visibility="Collapsed"
+                               Margin="0,4,0,0" />
+                    <DockPanel Margin="0,10,0,0" LastChildFill="False">
+                        <Button Content="创建"
+                                DockPanel.Dock="Right"
+                                Click="CreateQuickAddTodoButton_OnClick" />
+                        <Button Content="关闭"
+                                DockPanel.Dock="Right"
+                                Margin="0,0,8,0"
+                                Click="CloseQuickAddPopoverButton_OnClick" />
                     </DockPanel>
                 </StackPanel>
             </Border>

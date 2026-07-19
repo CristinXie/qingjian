@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -12,14 +13,27 @@ namespace QingJian.App.TodoWidgets;
 
 public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
 {
+    public static readonly DependencyProperty PopoverEditorVisibilityProperty =
+        DependencyProperty.Register(
+            nameof(PopoverEditorVisibility),
+            typeof(Visibility),
+            typeof(TodoWidgetWindow),
+            new PropertyMetadata(Visibility.Visible));
+
     private readonly TodoWidgetViewModel _viewModel;
     private readonly WindowZOrderService _windowZOrderService;
     private readonly TodoWidgetCoordinator _coordinator;
     private readonly DispatcherTimer _minimizeRecoveryTimer;
+    private readonly DispatcherTimer _calendarHoverPreviewTimer;
+    private readonly DispatcherTimer _transientPopoverFocusTimer;
     private ThreadingTimer? _desktopOwnerAttachTimer;
     private HwndSource? _hwndSource;
     private IntPtr _windowHandle;
     private TodoItem? _editingTodo;
+    private FrameworkElement? _editPopoverAnchor;
+    private FrameworkElement? _calendarHoverAnchor;
+    private DateOnly? _calendarHoverDate;
+    private IntPtr _foregroundWindowWhenPopoverOpened;
     private bool _isHidingFromButton;
     private bool _isRestoringFromSystemMinimize;
     private bool _isDragging;
@@ -45,6 +59,23 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
         _minimizeRecoveryTimer.Tick += MinimizeRecoveryTimer_OnTick;
         _minimizeRecoveryTimer.Start();
 
+        _calendarHoverPreviewTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(2)
+        };
+        _calendarHoverPreviewTimer.Tick += CalendarHoverPreviewTimer_OnTick;
+
+        _transientPopoverFocusTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(125)
+        };
+        _transientPopoverFocusTimer.Tick += TransientPopoverFocusTimer_OnTick;
+    }
+
+    public Visibility PopoverEditorVisibility
+    {
+        get => (Visibility)GetValue(PopoverEditorVisibilityProperty);
+        set => SetValue(PopoverEditorVisibilityProperty, value);
     }
 
     private void Window_OnSourceInitialized(object? sender, EventArgs e)
@@ -99,6 +130,40 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
         }
 
         RestoreFromSystemMinimize();
+    }
+
+    private void Window_OnDeactivated(object? sender, EventArgs e)
+    {
+        CloseTransientPopovers();
+    }
+
+    private void TransientPopoverFocusTimer_OnTick(object? sender, EventArgs e)
+    {
+        CloseTransientPopoversIfFocusLost();
+    }
+
+    private void CloseTransientPopoversIfFocusLost()
+    {
+        if (!HasOpenTransientPopover())
+        {
+            _transientPopoverFocusTimer.Stop();
+            return;
+        }
+
+        var foregroundWindow = GetForegroundWindow();
+        var pointerOverCalendarPreview =
+            _calendarHoverAnchor?.IsMouseOver == true || CalendarPreviewPopover.IsMouseOver;
+        if (foregroundWindow == _windowHandle)
+        {
+            _foregroundWindowWhenPopoverOpened = foregroundWindow;
+            return;
+        }
+
+        if (foregroundWindow != _foregroundWindowWhenPopoverOpened ||
+            (foregroundWindow != _windowHandle && !IsMouseOver && !pointerOverCalendarPreview))
+        {
+            CloseTransientPopovers();
+        }
     }
 
     private void RestoreFromSystemMinimize()
@@ -189,29 +254,17 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
         return PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
     }
 
-    private async void EightDayButton_OnClick(object sender, RoutedEventArgs e)
+    private async void CycleModeButton_OnClick(object sender, RoutedEventArgs e)
     {
-        _viewModel.SetMode(TodoWidgetMode.EightDay);
-        await _viewModel.LoadAsync();
-        await _coordinator.SavePreferencesAsync();
-    }
-
-    private async void TodayButton_OnClick(object sender, RoutedEventArgs e)
-    {
-        _viewModel.SetMode(TodoWidgetMode.Today);
-        await _viewModel.LoadAsync();
-        await _coordinator.SavePreferencesAsync();
-    }
-
-    private async void CalendarButton_OnClick(object sender, RoutedEventArgs e)
-    {
-        _viewModel.SetMode(TodoWidgetMode.Calendar);
+        CloseTransientPopovers();
+        _viewModel.CycleMode();
         await _viewModel.LoadAsync();
         await _coordinator.SavePreferencesAsync();
     }
 
     private async void PreviousMonthButton_OnClick(object sender, RoutedEventArgs e)
     {
+        CloseTransientPopovers();
         _viewModel.ShowPreviousMonth();
         await _viewModel.LoadAsync();
         await _coordinator.SavePreferencesAsync();
@@ -219,6 +272,7 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
 
     private async void NextMonthButton_OnClick(object sender, RoutedEventArgs e)
     {
+        CloseTransientPopovers();
         _viewModel.ShowNextMonth();
         await _viewModel.LoadAsync();
         await _coordinator.SavePreferencesAsync();
@@ -226,50 +280,143 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
 
     private async void CurrentMonthButton_OnClick(object sender, RoutedEventArgs e)
     {
+        CloseTransientPopovers();
         _viewModel.ReturnToCurrentMonth();
         await _viewModel.LoadAsync();
         await _coordinator.SavePreferencesAsync();
     }
 
-    private async void LockCheckBox_OnChanged(object sender, RoutedEventArgs e)
+    private async void LockButton_OnClick(object sender, RoutedEventArgs e)
     {
+        _viewModel.IsLocked = !_viewModel.IsLocked;
         await _coordinator.SavePreferencesAsync();
     }
 
-    private void OpenTodayPopoverButton_OnClick(object sender, RoutedEventArgs e)
+    private void AddTodayTodoButton_OnClick(object sender, RoutedEventArgs e)
     {
+        if (sender is not FrameworkElement anchor)
+        {
+            return;
+        }
+
+        CloseTransientPopovers();
         _viewModel.PinToday();
-        ShowPopover();
+        ShowQuickAddPopover(anchor);
     }
 
-    private void DateCell_OnMouseEnter(object sender, MouseEventArgs e)
+    private void EditTodayTodoButton_OnClick(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is DateOnly date)
+        if (sender is not FrameworkElement { Tag: TodoItem todo })
         {
-            _viewModel.OpenPopoverForDate(date);
-            ShowPopover();
+            return;
         }
-    }
 
-    private void DateCell_OnMouseLeave(object sender, MouseEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is DateOnly date)
-        {
-            _viewModel.ClearHoverDate(date);
-            if (_viewModel.PinnedDate is null)
-            {
-                EditPopover.Visibility = Visibility.Collapsed;
-            }
-        }
+        CloseTransientPopovers();
+        _viewModel.PinDate(todo.Date);
+        ShowTodoManagePopover(anchor: null, showEditor: false);
+        BeginEditingTodo(todo);
     }
 
     private void DateCell_OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is DateOnly date)
+        if (sender is not FrameworkElement { DataContext: DateOnly date } anchor)
         {
-            _viewModel.PinDate(date);
-            ShowPopover();
+            return;
         }
+
+        if (TodoWidgetManagePopoverToggle.ShouldClose(
+                EditPopover.Visibility == Visibility.Visible,
+                _viewModel.PinnedDate,
+                date))
+        {
+            CloseEditPopover();
+            return;
+        }
+
+        CloseQuickAddPopover();
+        CloseCalendarPreviewPopover();
+        _viewModel.PinDate(date);
+        ShowTodoManagePopover(anchor, showEditor: false);
+    }
+
+    private void AddTodoForDateButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: DateOnly date } anchor)
+        {
+            CloseEditPopover();
+            CloseCalendarPreviewPopover();
+            _viewModel.PinDate(date);
+            ShowQuickAddPopover(anchor);
+        }
+
+        e.Handled = true;
+    }
+
+    private void CalendarDateCell_OnMouseEnter(object sender, MouseEventArgs e)
+    {
+        if (_viewModel.Mode != TodoWidgetMode.Calendar ||
+            EditPopover.Visibility == Visibility.Visible ||
+            QuickAddPopover.Visibility == Visibility.Visible ||
+            sender is not FrameworkElement { DataContext: DateOnly date } anchor)
+        {
+            return;
+        }
+
+        _calendarHoverPreviewTimer.Stop();
+        if (CalendarPreviewPopover.Visibility == Visibility.Visible && _calendarHoverDate != date)
+        {
+            CloseCalendarPreviewPopover();
+        }
+
+        _calendarHoverAnchor = anchor;
+        _calendarHoverDate = date;
+        _calendarHoverPreviewTimer.Start();
+    }
+
+    private void CalendarDateCell_OnMouseLeave(object sender, MouseEventArgs e)
+    {
+        if (!ReferenceEquals(sender, _calendarHoverAnchor))
+        {
+            return;
+        }
+
+        if (CalendarPreviewPopover.Visibility != Visibility.Visible)
+        {
+            CloseCalendarPreviewPopover();
+            return;
+        }
+
+        Dispatcher.BeginInvoke((Action)CloseCalendarPreviewIfPointerLeft, DispatcherPriority.Input);
+    }
+
+    private void CalendarPreviewPopover_OnMouseLeave(object sender, MouseEventArgs e)
+    {
+        Dispatcher.BeginInvoke((Action)CloseCalendarPreviewIfPointerLeft, DispatcherPriority.Input);
+    }
+
+    private void CalendarHoverPreviewTimer_OnTick(object? sender, EventArgs e)
+    {
+        _calendarHoverPreviewTimer.Stop();
+        if (_viewModel.Mode != TodoWidgetMode.Calendar ||
+            _calendarHoverAnchor?.IsMouseOver != true ||
+            _calendarHoverDate is null ||
+            EditPopover.Visibility == Visibility.Visible ||
+            QuickAddPopover.Visibility == Visibility.Visible)
+        {
+            return;
+        }
+
+        ShowCalendarPreviewPopover(_calendarHoverAnchor);
+    }
+
+    private void CloseCalendarPreviewIfPointerLeft()
+    {
+        if (_calendarHoverAnchor?.IsMouseOver == true || CalendarPreviewPopover.IsMouseOver)
+        {
+            return;
+        }
+
+        CloseCalendarPreviewPopover();
     }
 
     private async void QuickCompleteTodoCheckBox_OnClick(object sender, RoutedEventArgs e)
@@ -280,6 +427,7 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
         }
 
         await _viewModel.SetCompletedAsync(todo, checkBox.IsChecked == true);
+        RefreshCalendarPreviewTodos();
     }
 
     private async void HideButton_OnClick(object sender, RoutedEventArgs e)
@@ -292,6 +440,8 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
     private void Window_OnClosing(object? sender, CancelEventArgs e)
     {
         _minimizeRecoveryTimer.Stop();
+        _calendarHoverPreviewTimer.Stop();
+        _transientPopoverFocusTimer.Stop();
         _desktopOwnerAttachTimer?.Dispose();
         _desktopOwnerAttachTimer = null;
         _hwndSource?.RemoveHook(WndProc);
@@ -306,36 +456,192 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
         _ = _coordinator.SavePreferencesAsync();
     }
 
-    private void ShowPopover()
+    private void ShowTodoManagePopover(FrameworkElement? anchor, bool showEditor)
     {
+        _editPopoverAnchor = anchor;
+        SetPopoverEditorVisible(showEditor);
         EditPopover.Visibility = Visibility.Visible;
-        PopoverErrorTextBlock.Visibility = Visibility.Collapsed;
+        ResetEditValidationState();
         PopoverTodoListBox.ItemsSource = _viewModel.TodosForDate(_viewModel.ActivePopoverDate);
+        var contentTop = MainLayoutGrid.RowDefinitions[0].ActualHeight;
+        var availableSize = new Size(
+            MainLayoutGrid.ActualWidth,
+            Math.Max(0, MainLayoutGrid.ActualHeight - contentTop));
+        var quickAddHeight = MeasureQuickAddPopoverSize().Height;
+        EditPopover.Height = Math.Min(quickAddHeight, availableSize.Height);
+        EditPopover.MaxHeight = availableSize.Height;
+        if (anchor is null)
+        {
+            EditPopover.Margin = new Thickness(0, 24, 0, 0);
+        }
+        else
+        {
+            PositionEditPopoverNear(anchor);
+        }
+
+        RegisterTransientPopoverOpened();
+    }
+
+    private void SetPopoverEditorVisible(bool isVisible)
+    {
+        PopoverEditorVisibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+        PopoverTodoListRow.Height = isVisible
+            ? GridLength.Auto
+            : new GridLength(1, GridUnitType.Star);
+        PopoverEditorRow.Height = isVisible
+            ? new GridLength(1, GridUnitType.Star)
+            : new GridLength(0);
+        PopoverTodoListBox.MaxHeight = isVisible ? 72 : double.PositiveInfinity;
+    }
+
+    private void PositionEditPopoverNear(FrameworkElement anchor)
+    {
+        var contentTop = MainLayoutGrid.RowDefinitions[0].ActualHeight;
+        var availableSize = new Size(
+            MainLayoutGrid.ActualWidth,
+            Math.Max(0, MainLayoutGrid.ActualHeight - contentTop));
+        EditPopover.MaxHeight = availableSize.Height;
+        var anchorTopLeft = anchor.TransformToAncestor(MainLayoutGrid).Transform(new Point(0, 0));
+        var anchorBounds = new Rect(
+            anchorTopLeft.X,
+            anchorTopLeft.Y - contentTop,
+            anchor.ActualWidth,
+            anchor.ActualHeight);
+        var popoverSize = MeasureEditPopoverSize();
+        var position = TodoWidgetPopoverPositioner.CalculateNearAnchor(
+            anchorBounds,
+            popoverSize,
+            availableSize,
+            gap: 8);
+
+        EditPopover.Margin = new Thickness(position.Left, position.Top, 0, 0);
+    }
+
+    private Size MeasureEditPopoverSize()
+    {
+        var previousVisibility = EditPopover.Visibility;
+        if (previousVisibility == Visibility.Collapsed)
+        {
+            EditPopover.Visibility = Visibility.Hidden;
+        }
+
+        EditPopover.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var width = double.IsNaN(EditPopover.Width)
+            ? EditPopover.DesiredSize.Width
+            : EditPopover.Width;
+        var size = new Size(width, EditPopover.DesiredSize.Height);
+        EditPopover.Visibility = previousVisibility;
+        return size;
+    }
+
+    private void ShowCalendarPreviewPopover(FrameworkElement anchor)
+    {
+        RefreshCalendarPreviewTodos();
+        PositionCalendarPreviewPopoverNear(anchor);
+        CalendarPreviewPopover.Visibility = Visibility.Visible;
+        RegisterTransientPopoverOpened();
+    }
+
+    private void PositionCalendarPreviewPopoverNear(FrameworkElement anchor)
+    {
+        var contentTop = MainLayoutGrid.RowDefinitions[0].ActualHeight;
+        var availableSize = new Size(
+            MainLayoutGrid.ActualWidth,
+            Math.Max(0, MainLayoutGrid.ActualHeight - contentTop));
+        CalendarPreviewPopover.MaxHeight = availableSize.Height;
+        var anchorTopLeft = anchor.TransformToAncestor(MainLayoutGrid).Transform(new Point(0, 0));
+        var anchorBounds = new Rect(
+            anchorTopLeft.X,
+            anchorTopLeft.Y - contentTop,
+            anchor.ActualWidth,
+            anchor.ActualHeight);
+        var popoverSize = MeasureCalendarPreviewPopoverSize();
+        var position = TodoWidgetPopoverPositioner.CalculateNearAnchor(
+            anchorBounds,
+            popoverSize,
+            availableSize,
+            gap: -6);
+
+        CalendarPreviewPopover.Margin = new Thickness(position.Left, position.Top, 0, 0);
+    }
+
+    private Size MeasureCalendarPreviewPopoverSize()
+    {
+        var previousVisibility = CalendarPreviewPopover.Visibility;
+        var previousMargin = CalendarPreviewPopover.Margin;
+        if (previousVisibility == Visibility.Collapsed)
+        {
+            CalendarPreviewPopover.Visibility = Visibility.Hidden;
+        }
+
+        CalendarPreviewPopover.Margin = new Thickness(0);
+        CalendarPreviewPopover.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var width = double.IsNaN(CalendarPreviewPopover.Width)
+            ? CalendarPreviewPopover.DesiredSize.Width
+            : CalendarPreviewPopover.Width;
+        var size = new Size(width, CalendarPreviewPopover.DesiredSize.Height);
+        CalendarPreviewPopover.Margin = previousMargin;
+        CalendarPreviewPopover.Visibility = previousVisibility;
+        return size;
+    }
+
+    private void RefreshCalendarPreviewTodos()
+    {
+        if (_calendarHoverDate is not { } date)
+        {
+            return;
+        }
+
+        CalendarPreviewTodoListBox.ItemsSource = _viewModel.TodosForDate(date);
     }
 
     private void ClosePopoverButton_OnClick(object sender, RoutedEventArgs e)
     {
+        CloseEditPopover();
+    }
+
+    private void CloseEditPopover()
+    {
         _viewModel.ClearPinnedDate();
+        _editPopoverAnchor = null;
         EditPopover.Visibility = Visibility.Collapsed;
+        SetPopoverEditorVisible(false);
+        ClearTodoForm();
+        ResetEditValidationState();
+        StopTransientPopoverFocusMonitoringIfIdle();
     }
 
     private async void AddTodoButton_OnClick(object sender, RoutedEventArgs e)
     {
+        var validation = TodoWidgetDraftParser.ValidateQuickAddDraft(
+            _viewModel.ActivePopoverDate,
+            TodoTextBox.Text,
+            EditStartHourTextBox.Text,
+            EditStartMinuteTextBox.Text,
+            EditEndHourTextBox.Text,
+            EditEndMinuteTextBox.Text);
+
+        ApplyEditValidationState(validation);
+        if (!validation.IsValid || validation.Draft is null)
+        {
+            return;
+        }
+
         try
         {
-            var draft = CreateDraftFromPopover();
             if (_editingTodo is null)
             {
-                await _viewModel.CreateTodoAsync(draft);
+                await _viewModel.CreateTodoAsync(validation.Draft);
             }
             else
             {
-                await _viewModel.UpdateTodoAsync(_editingTodo, draft);
+                await _viewModel.UpdateTodoAsync(_editingTodo, validation.Draft);
             }
 
             ClearTodoForm();
             PopoverTodoListBox.ItemsSource = _viewModel.TodosForDate(_viewModel.ActivePopoverDate);
             PopoverErrorTextBlock.Visibility = Visibility.Collapsed;
+            SetPopoverEditorVisible(false);
             await _coordinator.SavePreferencesAsync();
         }
         catch (Exception ex) when (ex is ArgumentException or FormatException)
@@ -345,14 +651,211 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
         }
     }
 
-    private TodoDraft CreateDraftFromPopover()
+    private void ShowQuickAddPopover(FrameworkElement anchor)
     {
-        return TodoWidgetDraftParser.CreateDraft(
+        ClearQuickAddForm();
+        ResetQuickAddValidationState();
+        PositionQuickAddPopoverNear(anchor);
+        QuickAddPopover.Visibility = Visibility.Visible;
+        RegisterTransientPopoverOpened();
+    }
+
+    private void PositionQuickAddPopoverNear(FrameworkElement anchor)
+    {
+        var contentTop = MainLayoutGrid.RowDefinitions[0].ActualHeight;
+        var anchorTopLeft = anchor.TransformToAncestor(MainLayoutGrid).Transform(new Point(0, 0));
+        var anchorBounds = new Rect(
+            anchorTopLeft.X,
+            anchorTopLeft.Y - contentTop,
+            anchor.ActualWidth,
+            anchor.ActualHeight);
+        var popoverSize = MeasureQuickAddPopoverSize();
+        var availableSize = new Size(
+            MainLayoutGrid.ActualWidth,
+            Math.Max(0, MainLayoutGrid.ActualHeight - contentTop));
+        var position = TodoWidgetPopoverPositioner.CalculateNearAnchor(
+            anchorBounds,
+            popoverSize,
+            availableSize,
+            gap: 8);
+
+        QuickAddPopover.Margin = new Thickness(position.Left, position.Top, 0, 0);
+    }
+
+    private Size MeasureQuickAddPopoverSize()
+    {
+        var previousVisibility = QuickAddPopover.Visibility;
+        if (previousVisibility == Visibility.Collapsed)
+        {
+            QuickAddPopover.Visibility = Visibility.Hidden;
+        }
+
+        QuickAddPopover.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var width = double.IsNaN(QuickAddPopover.Width)
+            ? QuickAddPopover.DesiredSize.Width
+            : QuickAddPopover.Width;
+        var size = new Size(width, QuickAddPopover.DesiredSize.Height);
+        QuickAddPopover.Visibility = previousVisibility;
+        return size;
+    }
+
+    private void CloseQuickAddPopoverButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        CloseQuickAddPopover();
+    }
+
+    private async void CreateQuickAddTodoButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        var validation = TodoWidgetDraftParser.ValidateQuickAddDraft(
             _viewModel.ActivePopoverDate,
-            TodoTextBox.Text,
-            TimeKindComboBox.SelectedIndex,
-            StartTimeTextBox.Text,
-            EndTimeTextBox.Text);
+            QuickAddTextBox.Text,
+            QuickAddStartHourTextBox.Text,
+            QuickAddStartMinuteTextBox.Text,
+            QuickAddEndHourTextBox.Text,
+            QuickAddEndMinuteTextBox.Text);
+
+        ApplyQuickAddValidationState(validation);
+        if (!validation.IsValid || validation.Draft is null)
+        {
+            return;
+        }
+
+        await _viewModel.CreateTodoAsync(validation.Draft);
+        HideQuickAddPopoverAfterCreate();
+        await _coordinator.SavePreferencesAsync();
+    }
+
+    private void HideQuickAddPopoverAfterCreate()
+    {
+        CloseQuickAddPopover();
+    }
+
+    private void CloseQuickAddPopover()
+    {
+        _viewModel.ClearPinnedDate();
+        QuickAddPopover.Visibility = Visibility.Collapsed;
+        ClearQuickAddForm();
+        ResetQuickAddValidationState();
+        StopTransientPopoverFocusMonitoringIfIdle();
+    }
+
+    private void CloseCalendarPreviewPopover()
+    {
+        _calendarHoverPreviewTimer.Stop();
+        CalendarPreviewPopover.Visibility = Visibility.Collapsed;
+        CalendarPreviewTodoListBox.ItemsSource = null;
+        _calendarHoverAnchor = null;
+        _calendarHoverDate = null;
+        StopTransientPopoverFocusMonitoringIfIdle();
+    }
+
+    private void CloseTransientPopovers()
+    {
+        CloseEditPopover();
+        CloseQuickAddPopover();
+        CloseCalendarPreviewPopover();
+        _transientPopoverFocusTimer.Stop();
+    }
+
+    private void RegisterTransientPopoverOpened()
+    {
+        _foregroundWindowWhenPopoverOpened = GetForegroundWindow();
+        _transientPopoverFocusTimer.Start();
+    }
+
+    private bool HasOpenTransientPopover()
+    {
+        return EditPopover.Visibility == Visibility.Visible ||
+            QuickAddPopover.Visibility == Visibility.Visible ||
+            CalendarPreviewPopover.Visibility == Visibility.Visible;
+    }
+
+    private void StopTransientPopoverFocusMonitoringIfIdle()
+    {
+        if (!HasOpenTransientPopover())
+        {
+            _transientPopoverFocusTimer.Stop();
+        }
+    }
+
+    private void QuickAddField_OnChanged(object sender, RoutedEventArgs e)
+    {
+        ResetQuickAddValidationState();
+    }
+
+    private void ApplyQuickAddValidationState(TodoWidgetQuickAddDraftValidation validation)
+    {
+        var borderBrush = GetWidgetBorderBrush();
+        var dangerBrush = GetWidgetDangerBrush();
+
+        QuickAddTextBox.BorderBrush = validation.TextError is null ? borderBrush : dangerBrush;
+        QuickAddTextErrorTextBlock.Text = validation.TextError ?? string.Empty;
+        QuickAddTextErrorTextBlock.Visibility = validation.TextError is null ? Visibility.Collapsed : Visibility.Visible;
+
+        QuickAddTimePickerBorder.BorderBrush = validation.TimeError is null ? borderBrush : dangerBrush;
+        QuickAddTimeErrorTextBlock.Text = validation.TimeError ?? string.Empty;
+        QuickAddTimeErrorTextBlock.Visibility = validation.TimeError is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void ResetQuickAddValidationState()
+    {
+        QuickAddTextBox.BorderBrush = GetWidgetBorderBrush();
+        QuickAddTextErrorTextBlock.Text = string.Empty;
+        QuickAddTextErrorTextBlock.Visibility = Visibility.Collapsed;
+        QuickAddTimePickerBorder.BorderBrush = GetWidgetBorderBrush();
+        QuickAddTimeErrorTextBlock.Text = string.Empty;
+        QuickAddTimeErrorTextBlock.Visibility = Visibility.Collapsed;
+    }
+
+    private void EditField_OnChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!IsInitialized)
+        {
+            return;
+        }
+
+        ResetEditValidationState();
+    }
+
+    private void ApplyEditValidationState(TodoWidgetQuickAddDraftValidation validation)
+    {
+        var borderBrush = GetWidgetBorderBrush();
+        var dangerBrush = GetWidgetDangerBrush();
+
+        TodoTextBox.BorderBrush = validation.TextError is null ? borderBrush : dangerBrush;
+        EditTimePickerBorder.BorderBrush = validation.TimeError is null ? borderBrush : dangerBrush;
+
+        var errors = new[] { validation.TextError, validation.TimeError }
+            .Where(error => error is not null);
+        PopoverErrorTextBlock.Text = string.Join("；", errors);
+        PopoverErrorTextBlock.Visibility = validation.IsValid ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void ResetEditValidationState()
+    {
+        TodoTextBox.BorderBrush = GetWidgetBorderBrush();
+        EditTimePickerBorder.BorderBrush = GetWidgetBorderBrush();
+        PopoverErrorTextBlock.Text = string.Empty;
+        PopoverErrorTextBlock.Visibility = Visibility.Collapsed;
+    }
+
+    private void ClearQuickAddForm()
+    {
+        QuickAddTextBox.Text = string.Empty;
+        QuickAddStartHourTextBox.Text = string.Empty;
+        QuickAddStartMinuteTextBox.Text = string.Empty;
+        QuickAddEndHourTextBox.Text = string.Empty;
+        QuickAddEndMinuteTextBox.Text = string.Empty;
+    }
+
+    private Brush GetWidgetBorderBrush()
+    {
+        return (Brush)FindResource("TodoWidgetBorderBrush");
+    }
+
+    private Brush GetWidgetDangerBrush()
+    {
+        return (Brush)FindResource("TodoWidgetDangerBrush");
     }
 
     private async void CompleteTodoCheckBox_OnClick(object sender, RoutedEventArgs e)
@@ -373,12 +876,32 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
             return;
         }
 
+        BeginEditingTodo(todo);
+    }
+
+    private void BeginEditingTodo(TodoItem todo)
+    {
         _editingTodo = todo;
+        SetPopoverEditorVisible(true);
         TodoTextBox.Text = todo.Text;
-        TimeKindComboBox.SelectedIndex = todo.StartTime is null ? 0 : todo.EndTime is null ? 1 : 2;
-        StartTimeTextBox.Text = todo.StartTime?.ToString("HH:mm") ?? string.Empty;
-        EndTimeTextBox.Text = todo.EndTime?.ToString("HH:mm") ?? string.Empty;
+        EditStartHourTextBox.Text = todo.StartTime?.ToString("HH") ?? string.Empty;
+        EditStartMinuteTextBox.Text = todo.StartTime?.ToString("mm") ?? string.Empty;
+        EditEndHourTextBox.Text = todo.EndTime?.ToString("HH") ?? string.Empty;
+        EditEndMinuteTextBox.Text = todo.EndTime?.ToString("mm") ?? string.Empty;
         SaveTodoButton.Content = "保存";
+
+        if (_editPopoverAnchor is FrameworkElement anchor)
+        {
+            Dispatcher.BeginInvoke(
+                () =>
+                {
+                    if (EditPopover.Visibility == Visibility.Visible && ReferenceEquals(_editPopoverAnchor, anchor))
+                    {
+                        PositionEditPopoverNear(anchor);
+                    }
+                },
+                DispatcherPriority.Loaded);
+        }
     }
 
     private async void DeleteTodoButton_OnClick(object sender, RoutedEventArgs e)
@@ -406,9 +929,14 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
     {
         _editingTodo = null;
         TodoTextBox.Text = string.Empty;
-        TimeKindComboBox.SelectedIndex = 0;
-        StartTimeTextBox.Text = string.Empty;
-        EndTimeTextBox.Text = string.Empty;
+        EditStartHourTextBox.Text = string.Empty;
+        EditStartMinuteTextBox.Text = string.Empty;
+        EditEndHourTextBox.Text = string.Empty;
+        EditEndMinuteTextBox.Text = string.Empty;
         SaveTodoButton.Content = "新增";
+        ResetEditValidationState();
     }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
 }

@@ -11,7 +11,6 @@ public sealed class TodoWidgetViewModel : ViewModelBase
     private readonly Func<DateOnly> _todayProvider;
     private TodoWidgetMode _mode;
     private DateOnly _calendarMonth;
-    private DateOnly? _hoverDate;
     private DateOnly? _pinnedDate;
     private bool _isLocked;
     private double _opacity;
@@ -49,12 +48,6 @@ public sealed class TodoWidgetViewModel : ViewModelBase
         private set => SetField(ref _calendarMonth, value);
     }
 
-    public DateOnly? HoverDate
-    {
-        get => _hoverDate;
-        private set => SetField(ref _hoverDate, value);
-    }
-
     public DateOnly? PinnedDate
     {
         get => _pinnedDate;
@@ -64,8 +57,18 @@ public sealed class TodoWidgetViewModel : ViewModelBase
     public bool IsLocked
     {
         get => _isLocked;
-        set => SetField(ref _isLocked, value);
+        set
+        {
+            if (SetField(ref _isLocked, value))
+            {
+                OnPropertyChanged(nameof(LockActionToolTip));
+            }
+        }
     }
+
+    public string ModeSwitchToolTip => $"切换到{GetModeDisplayName(GetNextMode())}";
+
+    public string LockActionToolTip => IsLocked ? "解锁" : "锁定";
 
     public double Opacity
     {
@@ -93,7 +96,7 @@ public sealed class TodoWidgetViewModel : ViewModelBase
         }
     }
 
-    public DateOnly ActivePopoverDate => PinnedDate ?? HoverDate ?? _todayProvider();
+    public DateOnly ActivePopoverDate => PinnedDate ?? _todayProvider();
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -137,8 +140,14 @@ public sealed class TodoWidgetViewModel : ViewModelBase
     public void SetMode(TodoWidgetMode mode)
     {
         Mode = mode;
+        OnPropertyChanged(nameof(ModeSwitchToolTip));
         OnPropertyChanged(nameof(EightDayDates));
         OnPropertyChanged(nameof(CalendarDates));
+    }
+
+    public void CycleMode()
+    {
+        SetMode(GetNextMode());
     }
 
     public void ShowPreviousMonth()
@@ -158,25 +167,6 @@ public sealed class TodoWidgetViewModel : ViewModelBase
         var today = _todayProvider();
         CalendarMonth = new DateOnly(today.Year, today.Month, 1);
         OnPropertyChanged(nameof(CalendarDates));
-    }
-
-    public void SetHoverDate(DateOnly date)
-    {
-        HoverDate = date;
-    }
-
-    public void OpenPopoverForDate(DateOnly date)
-    {
-        HoverDate = date;
-        OnPropertyChanged(nameof(ActivePopoverDate));
-    }
-
-    public void ClearHoverDate(DateOnly date)
-    {
-        if (HoverDate == date)
-        {
-            HoverDate = null;
-        }
     }
 
     public void PinDate(DateOnly date)
@@ -222,6 +212,28 @@ public sealed class TodoWidgetViewModel : ViewModelBase
             TodoWidgetMode.Today => (_todayProvider(), _todayProvider()),
             TodoWidgetMode.Calendar => (CalendarDates[0], CalendarDates[^1]),
             _ => (_todayProvider(), _todayProvider())
+        };
+    }
+
+    private TodoWidgetMode GetNextMode()
+    {
+        return Mode switch
+        {
+            TodoWidgetMode.EightDay => TodoWidgetMode.Today,
+            TodoWidgetMode.Today => TodoWidgetMode.Calendar,
+            TodoWidgetMode.Calendar => TodoWidgetMode.EightDay,
+            _ => TodoWidgetMode.EightDay
+        };
+    }
+
+    private static string GetModeDisplayName(TodoWidgetMode mode)
+    {
+        return mode switch
+        {
+            TodoWidgetMode.EightDay => "八日",
+            TodoWidgetMode.Today => "今日",
+            TodoWidgetMode.Calendar => "日历",
+            _ => "八日"
         };
     }
 }

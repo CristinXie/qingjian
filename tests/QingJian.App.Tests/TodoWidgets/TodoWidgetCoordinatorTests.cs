@@ -8,6 +8,80 @@ namespace QingJian.App.Tests.TodoWidgets;
 public sealed class TodoWidgetCoordinatorTests
 {
     [Fact]
+    public async Task SavePreferencesAsync_PreservesVisiblePreferenceWhenWindowClosesDuringShutdown()
+    {
+        var folder = CreateTempFolder();
+        var settingsService = new AppSettingsService(folder);
+        await settingsService.SaveAsync(new AppSettings(
+            AppSettings.DefaultEditorMode,
+            TodoWidgetPreferences.Default with { IsVisible = true }));
+        FakeTodoWidgetWindow? window = null;
+        var coordinator = new TodoWidgetCoordinator(
+            new RecordingTodoService(),
+            settingsService,
+            (viewModel, _) =>
+            {
+                window = new FakeTodoWidgetWindow();
+                return window;
+            });
+
+        await coordinator.InitializeAsync();
+        Assert.NotNull(window);
+        Assert.True(window.IsVisible);
+
+        window.SimulateShutdownClose();
+        await coordinator.SavePreferencesAsync();
+        var settings = await settingsService.LoadAsync();
+
+        Assert.True(settings.TodoWidget.IsVisible);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_KeepsWidgetHiddenWhenPreviousSessionWasHidden()
+    {
+        var folder = CreateTempFolder();
+        var settingsService = new AppSettingsService(folder);
+        await settingsService.SaveAsync(new AppSettings(
+            AppSettings.DefaultEditorMode,
+            TodoWidgetPreferences.Default with { IsVisible = false }));
+        var windowCreated = false;
+        var coordinator = new TodoWidgetCoordinator(
+            new RecordingTodoService(),
+            settingsService,
+            (viewModel, _) =>
+            {
+                windowCreated = true;
+                return new FakeTodoWidgetWindow();
+            });
+
+        await coordinator.InitializeAsync();
+        await coordinator.SavePreferencesAsync();
+        var settings = await settingsService.LoadAsync();
+
+        Assert.False(windowCreated);
+        Assert.False(coordinator.IsVisible);
+        Assert.False(settings.TodoWidget.IsVisible);
+    }
+
+    [Fact]
+    public async Task HideWidgetAsync_PersistsHiddenPreference()
+    {
+        var folder = CreateTempFolder();
+        var settingsService = new AppSettingsService(folder);
+        var coordinator = new TodoWidgetCoordinator(
+            new RecordingTodoService(),
+            settingsService,
+            (viewModel, _) => new FakeTodoWidgetWindow());
+
+        await coordinator.InitializeAsync();
+        await coordinator.HideWidgetAsync();
+        var settings = await settingsService.LoadAsync();
+
+        Assert.False(coordinator.IsVisible);
+        Assert.False(settings.TodoWidget.IsVisible);
+    }
+
+    [Fact]
     public async Task ToggleWidgetVisibilityAsync_LoadsTodosAndPersistsVisibleWhenShowingHiddenWidget()
     {
         var folder = CreateTempFolder();
@@ -60,6 +134,11 @@ public sealed class TodoWidgetCoordinatorTests
         }
 
         public void Hide()
+        {
+            IsVisible = false;
+        }
+
+        public void SimulateShutdownClose()
         {
             IsVisible = false;
         }

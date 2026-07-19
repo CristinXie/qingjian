@@ -36,6 +36,44 @@ public sealed class TodoWidgetViewModelTests
     }
 
     [Fact]
+    public void CycleMode_UsesFixedOrderAndUpdatesNextModeTooltip()
+    {
+        var viewModel = new TodoWidgetViewModel(
+            new InMemoryTodoService(),
+            TodoWidgetPreferences.Default,
+            () => new DateOnly(2026, 7, 13));
+
+        Assert.Equal("切换到今日", viewModel.ModeSwitchToolTip);
+
+        viewModel.CycleMode();
+        Assert.Equal(TodoWidgetMode.Today, viewModel.Mode);
+        Assert.Equal("切换到日历", viewModel.ModeSwitchToolTip);
+
+        viewModel.CycleMode();
+        Assert.Equal(TodoWidgetMode.Calendar, viewModel.Mode);
+        Assert.Equal("切换到八日", viewModel.ModeSwitchToolTip);
+
+        viewModel.CycleMode();
+        Assert.Equal(TodoWidgetMode.EightDay, viewModel.Mode);
+        Assert.Equal("切换到今日", viewModel.ModeSwitchToolTip);
+    }
+
+    [Fact]
+    public void LockActionTooltip_DescribesNextLockAction()
+    {
+        var viewModel = new TodoWidgetViewModel(
+            new InMemoryTodoService(),
+            TodoWidgetPreferences.Default,
+            () => new DateOnly(2026, 7, 13));
+
+        Assert.Equal("锁定", viewModel.LockActionToolTip);
+
+        viewModel.IsLocked = true;
+
+        Assert.Equal("解锁", viewModel.LockActionToolTip);
+    }
+
+    [Fact]
     public async Task CalendarNavigation_LoadsVisibleCalendarGridAndReturnsToCurrentMonth()
     {
         var today = new DateOnly(2026, 7, 13);
@@ -100,48 +138,32 @@ public sealed class TodoWidgetViewModelTests
     }
 
     [Fact]
-    public void PinAndHoverDates_TrackPopoverTarget()
-    {
-        var today = new DateOnly(2026, 7, 13);
-        var viewModel = new TodoWidgetViewModel(new InMemoryTodoService(), TodoWidgetPreferences.Default, () => today);
-
-        viewModel.SetHoverDate(today);
-        viewModel.PinDate(today);
-        viewModel.ClearHoverDate(today);
-
-        Assert.Equal(today, viewModel.PinnedDate);
-        Assert.Null(viewModel.HoverDate);
-
-        viewModel.ClearPinnedDate();
-        Assert.Null(viewModel.PinnedDate);
-    }
-
-    [Fact]
-    public void HoverPopoverTargetDate_ClearsAfterHoverLeaves()
-    {
-        var today = new DateOnly(2026, 7, 13);
-        var selectedDate = today.AddDays(2);
-        var viewModel = new TodoWidgetViewModel(new InMemoryTodoService(), TodoWidgetPreferences.Default, () => today);
-
-        viewModel.OpenPopoverForDate(selectedDate);
-        Assert.Equal(selectedDate, viewModel.ActivePopoverDate);
-
-        viewModel.ClearHoverDate(selectedDate);
-
-        Assert.Equal(today, viewModel.ActivePopoverDate);
-    }
-
-    [Fact]
-    public void PinnedPopoverTargetDate_RemainsSelectedAfterHoverLeaves()
+    public void PinnedDate_TracksPopoverTargetUntilCleared()
     {
         var today = new DateOnly(2026, 7, 13);
         var selectedDate = today.AddDays(2);
         var viewModel = new TodoWidgetViewModel(new InMemoryTodoService(), TodoWidgetPreferences.Default, () => today);
 
         viewModel.PinDate(selectedDate);
-        viewModel.ClearHoverDate(selectedDate);
 
+        Assert.Equal(selectedDate, viewModel.PinnedDate);
         Assert.Equal(selectedDate, viewModel.ActivePopoverDate);
+
+        viewModel.ClearPinnedDate();
+
+        Assert.Null(viewModel.PinnedDate);
+        Assert.Equal(today, viewModel.ActivePopoverDate);
+    }
+
+    [Fact]
+    public void ViewModel_DoesNotExposeHoverPopoverState()
+    {
+        var viewModelType = typeof(TodoWidgetViewModel);
+
+        Assert.Null(viewModelType.GetProperty("HoverDate"));
+        Assert.Null(viewModelType.GetMethod("SetHoverDate"));
+        Assert.Null(viewModelType.GetMethod("OpenPopoverForDate"));
+        Assert.Null(viewModelType.GetMethod("ClearHoverDate"));
     }
 
     private sealed class InMemoryTodoService : ITodoService

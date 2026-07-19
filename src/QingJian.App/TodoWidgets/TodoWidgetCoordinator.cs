@@ -11,6 +11,7 @@ public sealed class TodoWidgetCoordinator
     private ITodoWidgetWindow? _window;
     private TodoWidgetViewModel? _viewModel;
     private AppSettings _settings = AppSettings.Default;
+    private bool _isWidgetVisible;
 
     public TodoWidgetCoordinator(
         ITodoService todoService,
@@ -33,14 +34,15 @@ public sealed class TodoWidgetCoordinator
         _windowFactory = windowFactory;
     }
 
-    public bool IsVisible => _window?.IsVisible == true;
+    public bool IsVisible => _isWidgetVisible;
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         _settings = await _settingsService.LoadAsync(cancellationToken);
         _viewModel = new TodoWidgetViewModel(_todoService, _settings.TodoWidget);
+        _isWidgetVisible = _settings.TodoWidget.IsVisible;
 
-        if (_settings.TodoWidget.IsVisible)
+        if (_isWidgetVisible)
         {
             await ShowWidgetAsync(cancellationToken);
         }
@@ -50,6 +52,7 @@ public sealed class TodoWidgetCoordinator
     {
         EnsureWindow();
         _window!.Show();
+        _isWidgetVisible = true;
         _window.MoveBehindOtherWindows();
         await _viewModel!.LoadAsync(cancellationToken);
         await SavePreferencesAsync(cancellationToken);
@@ -57,12 +60,8 @@ public sealed class TodoWidgetCoordinator
 
     public async Task HideWidgetAsync(CancellationToken cancellationToken = default)
     {
-        if (_window is null)
-        {
-            return;
-        }
-
-        _window.Hide();
+        _window?.Hide();
+        _isWidgetVisible = false;
         await SavePreferencesAsync(cancellationToken);
     }
 
