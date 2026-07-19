@@ -42,6 +42,7 @@ body {
 
 .toastui-editor-mode-switch {
   border-top-color: #ddd7cf;
+  display: none;
 }
 
 .toastui-editor-defaultUI *,
