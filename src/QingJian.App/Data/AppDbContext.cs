@@ -12,6 +12,8 @@ public sealed class AppDbContext : DbContext
 
     public DbSet<Note> Notes => Set<Note>();
 
+    public DbSet<TodoItem> TodoItems => Set<TodoItem>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Note>(entity =>
@@ -43,6 +45,53 @@ public sealed class AppDbContext : DbContext
                 .HasColumnType("INTEGER")
                 .HasDefaultValue(false)
                 .IsRequired();
+        });
+
+        modelBuilder.Entity<TodoItem>(entity =>
+        {
+            entity.ToTable("TodoItems");
+            entity.HasKey(todo => todo.Id);
+
+            entity.Property(todo => todo.Id)
+                .HasColumnType("TEXT")
+                .IsRequired();
+
+            entity.Property(todo => todo.Date)
+                .HasColumnType("TEXT")
+                .IsRequired();
+
+            entity.Property(todo => todo.Text)
+                .HasColumnType("TEXT")
+                .IsRequired();
+
+            entity.Property(todo => todo.StartTime)
+                .HasColumnType("TEXT");
+
+            entity.Property(todo => todo.EndTime)
+                .HasColumnType("TEXT");
+
+            entity.Property(todo => todo.IsCompleted)
+                .HasColumnType("INTEGER")
+                .HasDefaultValue(false)
+                .IsRequired();
+
+            entity.Property(todo => todo.CreatedAt)
+                .HasColumnType("TEXT")
+                .IsRequired();
+
+            entity.Property(todo => todo.UpdatedAt)
+                .HasColumnType("TEXT")
+                .IsRequired();
+
+            entity.Property(todo => todo.CompletedAt)
+                .HasColumnType("TEXT");
+
+            entity.Property(todo => todo.IsDeleted)
+                .HasColumnType("INTEGER")
+                .HasDefaultValue(false)
+                .IsRequired();
+
+            entity.HasIndex(todo => new { todo.Date, todo.IsDeleted });
         });
     }
 }

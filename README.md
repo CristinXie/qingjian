@@ -22,6 +22,19 @@ While QingJian is running, press `Ctrl + Alt + N` to open a quick-note card near
 - `Esc` cancels and asks before discarding non-empty content.
 - Closing the main window exits the app, so the shortcut stops working after exit.
 
+## Desktop Todo Widget
+
+QingJian shows a semi-transparent desktop todo widget by default on first launch after the feature is installed.
+
+- The widget stores todos independently from notes.
+- The main window can show or hide the widget.
+- The widget supports 8-day, today-list, and monthly-calendar presets.
+- The 8-day preset starts from yesterday and shows 8 consecutive days.
+- The monthly-calendar preset supports previous month, next month, and return to current month.
+- Todos can be added, edited, completed, deleted, and assigned no time, a single time, or a time range from the widget.
+- Completed todos remain visible and move to the bottom of their day.
+- Widget visibility, mode, position, opacity, lock state, and calendar month are persisted.
+
 ## Markdown Editing
 
 - Note bodies are stored as Markdown text.
