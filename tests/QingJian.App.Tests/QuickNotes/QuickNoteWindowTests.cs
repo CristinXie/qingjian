@@ -90,6 +90,30 @@ public sealed class QuickNoteWindowTests
     }
 
     [Fact]
+    public void FooterActions_UseEightDipRoundedButtonStyle()
+    {
+        var xaml = XDocument.Load(FindQuickNoteWindowXamlPath());
+        var styles = XDocument.Load(FindStylesXamlPath());
+        var buttons = xaml
+            .Descendants()
+            .Where(element => element.Name.LocalName == "Button"
+                && (string?)FindAttributeByLocalName(element, "Name") is "SaveButton" or "CancelButton")
+            .ToArray();
+        var roundedStyle = styles
+            .Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)FindAttributeByLocalName(element, "Key") == "RoundedButtonStyle");
+        var roundedBorder = roundedStyle
+            .Descendants()
+            .Single(element => element.Name.LocalName == "Border"
+                && (string?)element.Attribute("CornerRadius") == "8");
+
+        Assert.Equal(2, buttons.Length);
+        Assert.All(buttons, button => Assert.Equal("{StaticResource RoundedButtonStyle}", (string?)button.Attribute("Style")));
+        Assert.NotNull(roundedBorder);
+    }
+
+    [Fact]
     public void TitlePlaceholder_DoesNotSetLocalVisibilityThatOverridesStyleTrigger()
     {
         var xaml = XDocument.Load(FindQuickNoteWindowXamlPath());

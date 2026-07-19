@@ -83,6 +83,47 @@ public sealed class MainWindowXamlTests
         Assert.Equal("1", (string?)editorShell.Attribute("BorderThickness"));
     }
 
+    [Fact]
+    public void SidebarActionsAndNoteItems_UseEightDipRoundedBorders()
+    {
+        var xaml = XDocument.Load(FindMainWindowXamlPath());
+        var styles = XDocument.Load(FindStylesXamlPath());
+        var roundedStyle = styles
+            .Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)FindAttributeByLocalName(element, "Key") == "RoundedButtonStyle");
+        var noteItemStyle = styles
+            .Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)FindAttributeByLocalName(element, "Key") == "NoteListBoxItemStyle");
+        var roundedButtonBorder = roundedStyle
+            .Descendants()
+            .Single(element => element.Name.LocalName == "Border"
+                && (string?)element.Attribute("CornerRadius") == "8");
+        var roundedNoteItemBorder = noteItemStyle
+            .Descendants()
+            .Single(element => element.Name.LocalName == "Border"
+                && (string?)element.Attribute("CornerRadius") == "8");
+        var sidebarButtons = xaml
+            .Descendants()
+            .Where(element => element.Name.LocalName == "Button"
+                && (string?)element.Attribute("Content") is "新建便签" or "显示/隐藏桌面待办")
+            .ToArray();
+
+        Assert.NotEmpty(sidebarButtons);
+        Assert.All(sidebarButtons, button =>
+        {
+            var style = (string?)button.Attribute("Style");
+            Assert.Contains(style, new[]
+            {
+                "{StaticResource PrimaryButtonStyle}",
+                "{StaticResource SecondaryButtonStyle}"
+            });
+        });
+        Assert.NotNull(roundedButtonBorder);
+        Assert.NotNull(roundedNoteItemBorder);
+    }
+
     private static string FindMainWindowXamlPath()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
