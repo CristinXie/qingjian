@@ -17,12 +17,31 @@ body {
 }
 
 .toastui-editor-defaultUI {
+  height: 100%;
   border: 0;
+  background: #ffffff;
   font-family: var(--qj-ui-font);
 }
 
 .toastui-editor-defaultUI-toolbar {
+  border-bottom: 1px solid #ddd7cf;
   border-radius: 0;
+  background: #faf9f7;
+}
+
+.toastui-editor-main,
+.toastui-editor-md-container,
+.toastui-editor-ww-container,
+.toastui-editor-mode-switch {
+  background: #ffffff;
+}
+
+.toastui-editor-md-splitter {
+  background-color: #ddd7cf;
+}
+
+.toastui-editor-mode-switch {
+  border-top-color: #ddd7cf;
 }
 
 .toastui-editor-defaultUI *,
