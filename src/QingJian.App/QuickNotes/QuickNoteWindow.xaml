@@ -111,10 +111,12 @@
                         Content="保存"
                         DockPanel.Dock="Right"
                         Margin="8,0,0,0"
+                        Style="{StaticResource RoundedButtonStyle}"
                         Click="SaveButton_OnClick" />
                 <Button x:Name="CancelButton"
                         Content="取消"
                         DockPanel.Dock="Right"
+                        Style="{StaticResource RoundedButtonStyle}"
                         Click="CancelButton_OnClick" />
             </DockPanel>
         </Grid>
