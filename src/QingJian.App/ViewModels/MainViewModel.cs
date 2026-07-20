@@ -16,6 +16,8 @@ public sealed class MainViewModel : ViewModelBase
     private Note? _selectedNote;
     private bool _isBusy;
     private bool _isLoadingSelection;
+    private string _searchText = string.Empty;
+    private NoteNavigationSortMode _navigationSortMode = NoteNavigationSortMode.Time;
 
     public MainViewModel(INoteService noteService)
         : this(noteService, TimeSpan.FromMilliseconds(700), () => DateTime.Now)
@@ -32,16 +34,51 @@ public sealed class MainViewModel : ViewModelBase
         _noteService = noteService;
         _autoSaveDelay = autoSaveDelay;
         BindingOperations.EnableCollectionSynchronization(Notes, _notesSynchronization);
-        NotesView = new ListCollectionView(Notes);
-        NotesView.SortDescriptions.Add(new SortDescription(nameof(Note.UpdatedAt), ListSortDirection.Descending));
-        NotesView.GroupDescriptions.Add(new NoteNavigationGroupDescription(localNow));
+        NotesView = new ListCollectionView(Notes)
+        {
+            Filter = FilterNote,
+            CustomSort = new NoteNavigationComparer(() => NavigationSortMode, () => SearchText)
+        };
+        NotesView.GroupDescriptions.Add(new NoteNavigationGroupDescription(
+            localNow,
+            () => SearchText,
+            () => NavigationSortMode));
         NewNoteCommand = new AsyncRelayCommand(NewNoteAsync);
         DeleteSelectedNoteCommand = new AsyncRelayCommand(DeleteSelectedNoteAsync, () => SelectedNote is not null);
+        ToggleNavigationSortCommand = new RelayCommand(ToggleNavigationSort);
     }
 
     public ObservableCollection<Note> Notes { get; } = new();
 
     public ListCollectionView NotesView { get; }
+
+    public string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            if (!SetField(ref _searchText, value ?? string.Empty))
+            {
+                return;
+            }
+
+            RefreshNoteNavigation();
+        }
+    }
+
+    public NoteNavigationSortMode NavigationSortMode
+    {
+        get => _navigationSortMode;
+        private set => SetField(ref _navigationSortMode, value);
+    }
+
+    public string SortToggleToolTip => NavigationSortMode == NoteNavigationSortMode.Time
+        ? "按收藏"
+        : "按时间";
+
+    public bool ShowNoSearchResults => !IsEmpty
+        && !string.IsNullOrWhiteSpace(SearchText)
+        && NotesView.IsEmpty;
 
     public Note? SelectedNote
     {
@@ -90,6 +127,8 @@ public sealed class MainViewModel : ViewModelBase
     public AsyncRelayCommand NewNoteCommand { get; }
 
     public AsyncRelayCommand DeleteSelectedNoteCommand { get; }
+
+    public RelayCommand ToggleNavigationSortCommand { get; }
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -210,11 +249,17 @@ public sealed class MainViewModel : ViewModelBase
     {
         if (NotesView.Dispatcher.CheckAccess())
         {
-            NotesView.Refresh();
+            RefreshNoteNavigationCore();
             return;
         }
 
-        NotesView.Dispatcher.BeginInvoke(DispatcherPriority.DataBind, new Action(NotesView.Refresh));
+        NotesView.Dispatcher.BeginInvoke(DispatcherPriority.DataBind, new Action(RefreshNoteNavigationCore));
+    }
+
+    public async Task ToggleFavoriteAsync(Note note)
+    {
+        await _noteService.SetFavoriteAsync(note, !note.IsFavorite);
+        RefreshNoteNavigation();
     }
 
     private void OnSelectedNotePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -225,6 +270,29 @@ public sealed class MainViewModel : ViewModelBase
         }
 
         ScheduleAutoSave();
+    }
+
+    private bool FilterNote(object item)
+    {
+        return item is Note note
+            && (string.IsNullOrWhiteSpace(SearchText)
+                || NoteNavigationHelper.GetSearchMatch(note, SearchText) != NoteSearchMatchKind.None);
+    }
+
+    private void ToggleNavigationSort()
+    {
+        NavigationSortMode = NavigationSortMode == NoteNavigationSortMode.Time
+            ? NoteNavigationSortMode.Favorite
+            : NoteNavigationSortMode.Time;
+        RefreshNoteNavigation();
+    }
+
+    private void RefreshNoteNavigationCore()
+    {
+        NotesView.Refresh();
+        OnPropertyChanged(nameof(ShowNoSearchResults));
+        OnPropertyChanged(nameof(SortToggleToolTip));
+        OnPropertyChanged(nameof(SelectedNote));
     }
 
     private void ScheduleAutoSave()

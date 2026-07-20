@@ -165,6 +165,126 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task SearchText_GroupsTitleMatchesBeforeBodyMatchesAndPreservesSelection()
+    {
+        var now = new DateTime(2026, 7, 20, 12, 0, 0, DateTimeKind.Local);
+        var selected = CreateNote("selected", "Unrelated", now.AddHours(-3));
+        selected.Content = "No match";
+        var bodyMatch = CreateNote("body", "Other", now.AddHours(-1));
+        bodyMatch.Content = "contains alpha";
+        var titleMatch = CreateNote("title", "Alpha title", now.AddHours(-2));
+        titleMatch.Content = "Body";
+        var viewModel = new MainViewModel(
+            new InMemoryNoteService(selected, bodyMatch, titleMatch),
+            TimeSpan.FromMilliseconds(700),
+            () => now);
+        await viewModel.LoadAsync();
+        viewModel.SelectedNote = selected;
+
+        viewModel.SearchText = "ALPHA";
+
+        Assert.Same(selected, viewModel.SelectedNote);
+        Assert.Equal(new[] { "title", "body" }, viewModel.NotesView.Cast<Note>().Select(note => note.Id));
+        Assert.Equal(
+            new object[] { "标题匹配", "正文匹配" },
+            viewModel.NotesView.Groups!.Cast<CollectionViewGroup>().Select(group => group.Name));
+        Assert.False(viewModel.ShowNoSearchResults);
+    }
+
+    [Fact]
+    public async Task FavoriteSort_GroupsFavoritesByFavoriteTimeAndOthersByUpdatedAt()
+    {
+        var now = new DateTime(2026, 7, 20, 12, 0, 0, DateTimeKind.Local);
+        var favoriteOld = CreateNote("favorite-old", "Old favorite", now.AddHours(-1));
+        favoriteOld.IsFavorite = true;
+        favoriteOld.FavoritedAt = now.AddHours(-2);
+        var favoriteNew = CreateNote("favorite-new", "New favorite", now.AddHours(-4));
+        favoriteNew.IsFavorite = true;
+        favoriteNew.FavoritedAt = now.AddHours(-1);
+        var normalOld = CreateNote("normal-old", "Normal old", now.AddHours(-3));
+        var normalNew = CreateNote("normal-new", "Normal new", now.AddHours(-2));
+        var viewModel = new MainViewModel(
+            new InMemoryNoteService(normalNew, favoriteOld, normalOld, favoriteNew),
+            TimeSpan.FromMilliseconds(700),
+            () => now);
+        await viewModel.LoadAsync();
+
+        viewModel.ToggleNavigationSortCommand.Execute(null);
+
+        Assert.Equal(NoteNavigationSortMode.Favorite, viewModel.NavigationSortMode);
+        Assert.Equal("按时间", viewModel.SortToggleToolTip);
+        Assert.Equal(
+            new[] { "favorite-new", "favorite-old", "normal-new", "normal-old" },
+            viewModel.NotesView.Cast<Note>().Select(note => note.Id));
+        Assert.Equal(
+            new object[] { "收藏", "其他" },
+            viewModel.NotesView.Groups!.Cast<CollectionViewGroup>().Select(group => group.Name));
+    }
+
+    [Fact]
+    public async Task SearchText_SetsNoResultsOnlyWhenNotesExist()
+    {
+        var note = CreateNote("note", "Title");
+        var viewModel = new MainViewModel(new InMemoryNoteService(note));
+        await viewModel.LoadAsync();
+
+        viewModel.SearchText = "missing";
+
+        Assert.True(viewModel.ShowNoSearchResults);
+        Assert.Empty(viewModel.NotesView.Cast<Note>());
+
+        var emptyViewModel = new MainViewModel(new InMemoryNoteService());
+        await emptyViewModel.LoadAsync();
+        emptyViewModel.SearchText = "missing";
+        Assert.False(emptyViewModel.ShowNoSearchResults);
+    }
+
+    [Fact]
+    public async Task ToggleFavoriteAsync_RefreshesProjectionWithoutChangingSelectionOrUpdatedAt()
+    {
+        var now = new DateTime(2026, 7, 20, 12, 0, 0, DateTimeKind.Local);
+        var selected = CreateNote("selected", "Selected", now.AddHours(-1));
+        var target = CreateNote("target", "Target", now.AddHours(-2));
+        var originalUpdatedAt = target.UpdatedAt;
+        var service = new InMemoryNoteService(selected, target)
+        {
+            FavoriteUpdatedAt = now
+        };
+        var viewModel = new MainViewModel(service, TimeSpan.FromMilliseconds(700), () => now);
+        await viewModel.LoadAsync();
+        viewModel.SelectedNote = selected;
+        viewModel.ToggleNavigationSortCommand.Execute(null);
+
+        await viewModel.ToggleFavoriteAsync(target);
+
+        Assert.Same(selected, viewModel.SelectedNote);
+        Assert.True(target.IsFavorite);
+        Assert.Equal(now, target.FavoritedAt);
+        Assert.Equal(originalUpdatedAt, target.UpdatedAt);
+        Assert.Equal("target", viewModel.NotesView.Cast<Note>().First().Id);
+    }
+
+    [Fact]
+    public async Task ToggleFavoriteAsync_LeavesSelectionAndValuesIntactWhenServiceFails()
+    {
+        var selected = CreateNote("selected", "Selected");
+        var target = CreateNote("target", "Target");
+        var service = new InMemoryNoteService(selected, target)
+        {
+            FavoriteException = new InvalidOperationException("boom")
+        };
+        var viewModel = new MainViewModel(service);
+        await viewModel.LoadAsync();
+        viewModel.SelectedNote = selected;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => viewModel.ToggleFavoriteAsync(target));
+
+        Assert.Same(selected, viewModel.SelectedNote);
+        Assert.False(target.IsFavorite);
+        Assert.Null(target.FavoritedAt);
+    }
+
+    [Fact]
     public async Task SaveSelectedNoteNowAsync_RefreshesNavigationGrouping()
     {
         var now = new DateTime(2026, 7, 20, 12, 0, 0, DateTimeKind.Local);
@@ -293,6 +413,10 @@ public sealed class MainViewModelTests
 
         public DateTime? SavedUpdatedAt { get; init; }
 
+        public DateTime? FavoriteUpdatedAt { get; init; }
+
+        public Exception? FavoriteException { get; init; }
+
         public Task InitializeAsync(CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
@@ -323,8 +447,13 @@ public sealed class MainViewModelTests
 
         public Task SetFavoriteAsync(Note note, bool isFavorite, CancellationToken cancellationToken = default)
         {
+            if (FavoriteException is not null)
+            {
+                throw FavoriteException;
+            }
+
             note.IsFavorite = isFavorite;
-            note.FavoritedAt = isFavorite ? DateTime.UtcNow : null;
+            note.FavoritedAt = isFavorite ? FavoriteUpdatedAt ?? DateTime.UtcNow : null;
             return Task.CompletedTask;
         }
 
