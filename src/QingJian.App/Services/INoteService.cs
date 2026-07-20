@@ -12,5 +12,7 @@ public interface INoteService
 
     Task SaveNoteAsync(Note note, CancellationToken cancellationToken = default);
 
+    Task SetFavoriteAsync(Note note, bool isFavorite, CancellationToken cancellationToken = default);
+
     Task DeleteNoteAsync(Note note, CancellationToken cancellationToken = default);
 }

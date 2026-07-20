@@ -71,6 +71,17 @@ public sealed class NoteRepository : INoteRepository
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task UpdateFavoriteAsync(Note note, CancellationToken cancellationToken = default)
+    {
+        var existing = await _dbContext.Notes
+            .SingleAsync(item => item.Id == note.Id, cancellationToken);
+
+        existing.IsFavorite = note.IsFavorite;
+        existing.FavoritedAt = note.FavoritedAt;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task SoftDeleteAsync(string noteId, DateTime deletedAt, CancellationToken cancellationToken = default)
     {
         var existing = await _dbContext.Notes

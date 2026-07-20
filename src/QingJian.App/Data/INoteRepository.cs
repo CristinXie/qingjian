@@ -12,5 +12,7 @@ public interface INoteRepository
 
     Task UpdateAsync(Note note, CancellationToken cancellationToken = default);
 
+    Task UpdateFavoriteAsync(Note note, CancellationToken cancellationToken = default);
+
     Task SoftDeleteAsync(string noteId, DateTime deletedAt, CancellationToken cancellationToken = default);
 }

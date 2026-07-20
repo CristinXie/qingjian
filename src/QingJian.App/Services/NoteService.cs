@@ -40,6 +40,9 @@ public sealed class NoteService : INoteService
             Content = string.Empty,
             CreatedAt = now,
             UpdatedAt = now,
+            IsFavorite = false,
+            FavoritedAt = null,
+            FolderName = "未分类",
             IsDeleted = false
         };
 
@@ -52,6 +55,26 @@ public sealed class NoteService : INoteService
         note.Title = string.IsNullOrWhiteSpace(note.Title) ? DefaultTitle : note.Title.Trim();
         note.UpdatedAt = _utcNow();
         return _noteRepository.UpdateAsync(note, cancellationToken);
+    }
+
+    public async Task SetFavoriteAsync(Note note, bool isFavorite, CancellationToken cancellationToken = default)
+    {
+        var originalIsFavorite = note.IsFavorite;
+        var originalFavoritedAt = note.FavoritedAt;
+
+        note.IsFavorite = isFavorite;
+        note.FavoritedAt = isFavorite ? _utcNow() : null;
+
+        try
+        {
+            await _noteRepository.UpdateFavoriteAsync(note, cancellationToken);
+        }
+        catch
+        {
+            note.IsFavorite = originalIsFavorite;
+            note.FavoritedAt = originalFavoritedAt;
+            throw;
+        }
     }
 
     public Task DeleteNoteAsync(Note note, CancellationToken cancellationToken = default)

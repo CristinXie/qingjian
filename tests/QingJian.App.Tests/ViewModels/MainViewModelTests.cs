@@ -321,6 +321,13 @@ public sealed class MainViewModelTests
             return Task.CompletedTask;
         }
 
+        public Task SetFavoriteAsync(Note note, bool isFavorite, CancellationToken cancellationToken = default)
+        {
+            note.IsFavorite = isFavorite;
+            note.FavoritedAt = isFavorite ? DateTime.UtcNow : null;
+            return Task.CompletedTask;
+        }
+
         public Task DeleteNoteAsync(Note note, CancellationToken cancellationToken = default)
         {
             DeletedIds.Add(note.Id);

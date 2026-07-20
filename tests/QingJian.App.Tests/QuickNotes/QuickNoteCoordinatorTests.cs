@@ -244,6 +244,13 @@ public sealed class QuickNoteCoordinatorTests
             return Task.CompletedTask;
         }
 
+        public Task SetFavoriteAsync(Note note, bool isFavorite, CancellationToken cancellationToken = default)
+        {
+            note.IsFavorite = isFavorite;
+            note.FavoritedAt = isFavorite ? DateTime.UtcNow : null;
+            return Task.CompletedTask;
+        }
+
         private async Task SaveWithDelayAsync(Note note, CancellationToken cancellationToken)
         {
             await SaveDelay!.Task.WaitAsync(cancellationToken);

@@ -67,6 +67,30 @@ public sealed class NoteRepositoryTests
         Assert.Equal("未分类", note.FolderName);
     }
 
+    [Fact]
+    public async Task UpdateFavoriteAsync_PersistsFavoriteWithoutChangingContentOrUpdatedAt()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var repository = CreateRepository(connection);
+        await repository.InitializeAsync();
+        var updatedAt = new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc);
+        var favoritedAt = new DateTime(2026, 7, 20, 9, 0, 0, DateTimeKind.Utc);
+        var note = CreateNote("note-1", "Title", updatedAt, false);
+        note.Content = "Body";
+        await repository.AddAsync(note);
+
+        note.IsFavorite = true;
+        note.FavoritedAt = favoritedAt;
+        await repository.UpdateFavoriteAsync(note);
+
+        var loaded = Assert.Single(await repository.GetActiveNotesAsync());
+        Assert.True(loaded.IsFavorite);
+        Assert.Equal(favoritedAt, loaded.FavoritedAt);
+        Assert.Equal("Body", loaded.Content);
+        Assert.Equal(updatedAt, loaded.UpdatedAt);
+    }
+
     private static NoteRepository CreateRepository(SqliteConnection connection)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

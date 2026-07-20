@@ -48,11 +48,67 @@ public sealed class NoteServiceTests
         Assert.Single(repository.UpdatedNotes);
     }
 
+    [Fact]
+    public async Task SetFavoriteAsync_UpdatesFavoriteTimestampWithoutChangingUpdatedAt()
+    {
+        var repository = new InMemoryNoteRepository();
+        var updatedAt = new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc);
+        var favoritedAt = new DateTime(2026, 7, 20, 9, 0, 0, DateTimeKind.Utc);
+        var note = CreateNote(updatedAt);
+        var service = new NoteService(repository, () => favoritedAt);
+
+        await service.SetFavoriteAsync(note, true);
+
+        Assert.True(note.IsFavorite);
+        Assert.Equal(favoritedAt, note.FavoritedAt);
+        Assert.Equal(updatedAt, note.UpdatedAt);
+        Assert.Single(repository.FavoriteUpdates);
+    }
+
+    [Fact]
+    public async Task SetFavoriteAsync_RestoresOriginalValuesWhenPersistenceFails()
+    {
+        var repository = new InMemoryNoteRepository
+        {
+            FavoriteUpdateException = new InvalidOperationException("boom")
+        };
+        var updatedAt = new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc);
+        var originalFavoriteTime = new DateTime(2026, 7, 19, 9, 0, 0, DateTimeKind.Utc);
+        var note = CreateNote(updatedAt);
+        note.IsFavorite = true;
+        note.FavoritedAt = originalFavoriteTime;
+        var service = new NoteService(repository, () => updatedAt.AddHours(1));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.SetFavoriteAsync(note, false));
+
+        Assert.True(note.IsFavorite);
+        Assert.Equal(originalFavoriteTime, note.FavoritedAt);
+        Assert.Equal(updatedAt, note.UpdatedAt);
+    }
+
+    private static Note CreateNote(DateTime updatedAt)
+    {
+        return new Note
+        {
+            Id = "note-1",
+            Title = "Title",
+            Content = "Body",
+            CreatedAt = updatedAt.AddMinutes(-1),
+            UpdatedAt = updatedAt,
+            FolderName = "未分类",
+            IsDeleted = false
+        };
+    }
+
     private sealed class InMemoryNoteRepository : INoteRepository
     {
         public List<Note> Notes { get; } = new();
 
         public List<Note> UpdatedNotes { get; } = new();
+
+        public List<Note> FavoriteUpdates { get; } = new();
+
+        public Exception? FavoriteUpdateException { get; init; }
 
         public Task InitializeAsync(CancellationToken cancellationToken = default)
         {
@@ -73,6 +129,17 @@ public sealed class NoteServiceTests
         public Task UpdateAsync(Note note, CancellationToken cancellationToken = default)
         {
             UpdatedNotes.Add(note);
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateFavoriteAsync(Note note, CancellationToken cancellationToken = default)
+        {
+            if (FavoriteUpdateException is not null)
+            {
+                throw FavoriteUpdateException;
+            }
+
+            FavoriteUpdates.Add(note);
             return Task.CompletedTask;
         }
 
