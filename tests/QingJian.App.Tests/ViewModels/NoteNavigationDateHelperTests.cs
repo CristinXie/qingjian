@@ -31,4 +31,21 @@ public sealed class NoteNavigationDateHelperTests
 
         Assert.Equal(expected, NoteNavigationDateHelper.FormatCreatedAt(createdAt, now));
     }
+
+    [Theory]
+    [InlineData(2026, 6, 19, 15, 30, "6/19 15:30")]
+    [InlineData(2025, 6, 19, 15, 30, "2025/6/19 15:30")]
+    public void FormatUpdatedAt_UsesYearSensitiveNavigationFormat(
+        int year,
+        int month,
+        int day,
+        int hour,
+        int minute,
+        string expected)
+    {
+        var now = new DateTime(2026, 7, 20, 12, 0, 0, DateTimeKind.Local);
+        var updatedAt = new DateTime(year, month, day, hour, minute, 0, DateTimeKind.Local);
+
+        Assert.Equal(expected, NoteNavigationDateHelper.FormatUpdatedAt(updatedAt, now));
+    }
 }

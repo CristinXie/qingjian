@@ -32,6 +32,17 @@ public static class NoteNavigationDateHelper
             : $"创建于 {date.Year}年{date.Month}月{date.Day}日";
     }
 
+    public static string FormatUpdatedAt(DateTime updatedAt, DateTime localNow)
+    {
+        var date = ToLocal(updatedAt);
+        var now = ToLocal(localNow);
+        var time = $"{date.Hour:00}:{date.Minute:00}";
+
+        return date.Year == now.Year
+            ? $"{date.Month}/{date.Day} {time}"
+            : $"{date.Year}/{date.Month}/{date.Day} {time}";
+    }
+
     private static DateTime ToLocal(DateTime value)
     {
         return value.Kind == DateTimeKind.Utc ? value.ToLocalTime() : value;
