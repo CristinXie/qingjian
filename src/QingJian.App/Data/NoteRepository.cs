@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using QingJian.App.Models;
 
@@ -12,9 +13,35 @@ public sealed class NoteRepository : INoteRepository
         _dbContext = dbContext;
     }
 
-    public Task InitializeAsync(CancellationToken cancellationToken = default)
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        return _dbContext.Database.EnsureCreatedAsync(cancellationToken);
+        await _dbContext.Database.EnsureCreatedAsync(cancellationToken);
+        var columns = await GetNoteColumnNamesAsync(cancellationToken);
+
+        if (!columns.Contains("IsFavorite"))
+        {
+            await _dbContext.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE Notes ADD COLUMN IsFavorite INTEGER NOT NULL DEFAULT 0;",
+                cancellationToken);
+        }
+
+        if (!columns.Contains("FavoritedAt"))
+        {
+            await _dbContext.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE Notes ADD COLUMN FavoritedAt TEXT NULL;",
+                cancellationToken);
+        }
+
+        if (!columns.Contains("FolderName"))
+        {
+            await _dbContext.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE Notes ADD COLUMN FolderName TEXT NOT NULL DEFAULT '未分类';",
+                cancellationToken);
+        }
+
+        await _dbContext.Database.ExecuteSqlRawAsync(
+            "UPDATE Notes SET FolderName = '未分类' WHERE FolderName IS NULL OR trim(FolderName) = '';",
+            cancellationToken);
     }
 
     public async Task<IReadOnlyList<Note>> GetActiveNotesAsync(CancellationToken cancellationToken = default)
@@ -53,5 +80,38 @@ public sealed class NoteRepository : INoteRepository
         existing.UpdatedAt = deletedAt;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<HashSet<string>> GetNoteColumnNamesAsync(CancellationToken cancellationToken)
+    {
+        var connection = _dbContext.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+
+        if (shouldClose)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = "PRAGMA table_info(\"Notes\");";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                columns.Add(reader.GetString(1));
+            }
+
+            return columns;
+        }
+        finally
+        {
+            if (shouldClose)
+            {
+                await connection.CloseAsync();
+            }
+        }
     }
 }

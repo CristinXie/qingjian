@@ -44,6 +44,29 @@ public sealed class NoteRepositoryTests
         Assert.Empty(notes);
     }
 
+    [Fact]
+    public async Task InitializeAsync_AddsFavoriteAndFolderColumnsToExistingNotesDatabase()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await CreateLegacyNotesTableAsync(connection);
+        await InsertLegacyNoteAsync(connection, "legacy");
+        var repository = CreateRepository(connection);
+
+        await repository.InitializeAsync();
+        await repository.InitializeAsync();
+
+        var columns = await ReadColumnNamesAsync(connection, "Notes");
+        Assert.Contains("IsFavorite", columns);
+        Assert.Contains("FavoritedAt", columns);
+        Assert.Contains("FolderName", columns);
+
+        var note = Assert.Single(await repository.GetActiveNotesAsync());
+        Assert.False(note.IsFavorite);
+        Assert.Null(note.FavoritedAt);
+        Assert.Equal("未分类", note.FolderName);
+    }
+
     private static NoteRepository CreateRepository(SqliteConnection connection)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -64,5 +87,47 @@ public sealed class NoteRepositoryTests
             UpdatedAt = updatedAt,
             IsDeleted = isDeleted
         };
+    }
+
+    private static async Task CreateLegacyNotesTableAsync(SqliteConnection connection)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            CREATE TABLE Notes (
+                Id TEXT NOT NULL PRIMARY KEY,
+                Title TEXT NOT NULL,
+                Content TEXT NOT NULL,
+                CreatedAt TEXT NOT NULL,
+                UpdatedAt TEXT NOT NULL,
+                IsDeleted INTEGER NOT NULL DEFAULT 0
+            );
+            """;
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task InsertLegacyNoteAsync(SqliteConnection connection, string id)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO Notes (Id, Title, Content, CreatedAt, UpdatedAt, IsDeleted)
+            VALUES ($id, 'Legacy', 'Body', '2026-07-20 08:00:00', '2026-07-20 09:00:00', 0);
+            """;
+        command.Parameters.AddWithValue("$id", id);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task<HashSet<string>> ReadColumnNamesAsync(SqliteConnection connection, string tableName)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info(\"{tableName}\");";
+        await using var reader = await command.ExecuteReaderAsync();
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        while (await reader.ReadAsync())
+        {
+            columns.Add(reader.GetString(1));
+        }
+
+        return columns;
     }
 }

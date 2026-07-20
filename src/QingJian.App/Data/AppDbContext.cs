@@ -41,6 +41,19 @@ public sealed class AppDbContext : DbContext
                 .HasColumnType("TEXT")
                 .IsRequired();
 
+            entity.Property(note => note.IsFavorite)
+                .HasColumnType("INTEGER")
+                .HasDefaultValue(false)
+                .IsRequired();
+
+            entity.Property(note => note.FavoritedAt)
+                .HasColumnType("TEXT");
+
+            entity.Property(note => note.FolderName)
+                .HasColumnType("TEXT")
+                .HasDefaultValue("未分类")
+                .IsRequired();
+
             entity.Property(note => note.IsDeleted)
                 .HasColumnType("INTEGER")
                 .HasDefaultValue(false)

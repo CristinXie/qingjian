@@ -18,6 +18,8 @@ public sealed class AppDbContextTests
             .UseSqlite(connection)
             .Options;
 
+        var favoritedAt = new DateTime(2026, 7, 8, 10, 5, 0, DateTimeKind.Utc);
+
         await using (var db = new AppDbContext(options))
         {
             await db.Database.EnsureCreatedAsync();
@@ -28,6 +30,9 @@ public sealed class AppDbContextTests
                 Content = "Hello",
                 CreatedAt = new DateTime(2026, 7, 8, 10, 0, 0, DateTimeKind.Utc),
                 UpdatedAt = new DateTime(2026, 7, 8, 10, 0, 0, DateTimeKind.Utc),
+                IsFavorite = true,
+                FavoritedAt = favoritedAt,
+                FolderName = "项目",
                 IsDeleted = false
             });
             await db.SaveChangesAsync();
@@ -39,6 +44,9 @@ public sealed class AppDbContextTests
         Assert.Equal("note-1", saved.Id);
         Assert.Equal("First note", saved.Title);
         Assert.Equal("Hello", saved.Content);
+        Assert.True(saved.IsFavorite);
+        Assert.Equal(favoritedAt, saved.FavoritedAt);
+        Assert.Equal("项目", saved.FolderName);
         Assert.False(saved.IsDeleted);
     }
 }
