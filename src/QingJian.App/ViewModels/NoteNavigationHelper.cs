@@ -1,9 +1,15 @@
+using System.Globalization;
+using Markdig;
 using QingJian.App.Models;
 
 namespace QingJian.App.ViewModels;
 
 public static class NoteNavigationHelper
 {
+    private static readonly MarkdownPipeline BodyStatsPipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        .Build();
+
     public static NoteSearchMatchKind GetSearchMatch(Note note, string? searchText)
     {
         var query = searchText?.Trim();
@@ -53,13 +59,20 @@ public static class NoteNavigationHelper
             return "0 行 0 字";
         }
 
-        var normalized = markdown.Replace("\r\n", "\n").Replace('\r', '\n');
+        var plainText = Markdown.ToPlainText(markdown, BodyStatsPipeline).Replace("\r\n", "\n").Replace('\r', '\n');
+        var normalized = plainText.TrimEnd('\n');
+        if (normalized.Length == 0)
+        {
+            return "0 行 0 字";
+        }
+
         var lineCount = 1;
         var characterCount = 0;
 
-        foreach (var character in normalized)
+        var textElements = StringInfo.GetTextElementEnumerator(normalized);
+        while (textElements.MoveNext())
         {
-            if (character == '\n')
+            if (textElements.GetTextElement() == "\n")
             {
                 lineCount++;
             }

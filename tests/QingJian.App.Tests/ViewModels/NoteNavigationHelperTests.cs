@@ -93,9 +93,14 @@ public sealed class NoteNavigationHelperTests
     [Theory]
     [InlineData("", "0 行 0 字")]
     [InlineData("你好", "1 行 2 字")]
-    [InlineData("你好\r\n世界", "2 行 4 字")]
-    [InlineData("第一行\n", "2 行 3 字")]
-    public void FormatBodyStats_UsesRawMarkdownLineAndCharacterRules(string markdown, string expected)
+    [InlineData("# 标题", "1 行 2 字")]
+    [InlineData("这是 **正文**。", "1 行 6 字")]
+    [InlineData("[官网](https://example.com)", "1 行 2 字")]
+    [InlineData("![截图](image.png)", "1 行 2 字")]
+    [InlineData("- 第一项\n- 第二项", "2 行 6 字")]
+    [InlineData("> 引用\n\n`code`", "2 行 6 字")]
+    [InlineData("正文 👩‍💻", "1 行 4 字")]
+    public void FormatBodyStats_CountsRenderedPlainText(string markdown, string expected)
     {
         Assert.Equal(expected, NoteNavigationHelper.FormatBodyStats(markdown));
     }
