@@ -235,6 +235,7 @@
     if (files.length > 0) {
       event.preventDefault();
       event.stopPropagation();
+      event.stopImmediatePropagation();
       files.forEach((file) => {
         requestLocalImageUpload(file, insertImageMarkdown);
       });
