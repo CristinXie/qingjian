@@ -153,11 +153,12 @@
     <SolidColorBrush x:Key="QuickNoteBorderBrush" Color="#DDD7CF" />
     <SolidColorBrush x:Key="QuickNoteErrorBrush" Color="#B42318" />
 
-    <Color x:Key="TodoWidgetBackgroundColor">#F8F5EF</Color>
+    <Color x:Key="TodoWidgetBackgroundColor">#F2FAF4</Color>
     <Color x:Key="TodoWidgetBorderColor">#CFC5B5</Color>
     <Color x:Key="TodoWidgetAccentColor">#7B6A50</Color>
     <Color x:Key="TodoWidgetDangerColor">#A64032</Color>
     <SolidColorBrush x:Key="TodoWidgetBackgroundBrush" Color="{StaticResource TodoWidgetBackgroundColor}" />
+    <SolidColorBrush x:Key="TodoWidgetPopoverBackgroundBrush" Color="#F2FAF4" />
     <SolidColorBrush x:Key="TodoWidgetBorderBrush" Color="{StaticResource TodoWidgetBorderColor}" />
     <SolidColorBrush x:Key="TodoWidgetAccentBrush" Color="{StaticResource TodoWidgetAccentColor}" />
     <SolidColorBrush x:Key="TodoWidgetDangerBrush" Color="{StaticResource TodoWidgetDangerColor}" />
