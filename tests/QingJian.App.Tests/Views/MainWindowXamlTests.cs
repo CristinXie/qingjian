@@ -37,6 +37,22 @@ public sealed class MainWindowXamlTests
         Assert.Contains(sortButton.Descendants(), element =>
             element.Name.LocalName == "Setter"
             && (string?)element.Attribute("Value") == "按收藏");
+
+        var style = sortButton.Descendants().Single(element =>
+            element.Name.LocalName == "Style"
+            && (string?)element.Attribute("TargetType") == "Button");
+        var defaultGlyph = style.Elements().Single(element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Content");
+        var favoriteTrigger = style.Descendants().Single(element =>
+            element.Name.LocalName == "DataTrigger"
+            && (string?)element.Attribute("Value") == "Favorite");
+        var favoriteGlyph = favoriteTrigger.Elements().Single(element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Content");
+
+        Assert.Equal("\uE823", (string?)defaultGlyph.Attribute("Value"));
+        Assert.Equal("\uE734", (string?)favoriteGlyph.Attribute("Value"));
     }
 
     [Fact]
@@ -60,6 +76,46 @@ public sealed class MainWindowXamlTests
         Assert.Contains(xaml.Descendants(), element =>
             element.Name.LocalName == "TextBlock"
             && (string?)element.Attribute("Text") == "{Binding FolderName}");
+    }
+
+    [Fact]
+    public void NoteList_UsesBalancedThreeRowPreviewSpacing()
+    {
+        var xaml = XDocument.Load(FindMainWindowXamlPath());
+        var styles = XDocument.Load(FindStylesXamlPath());
+        var title = xaml.Descendants().Single(element =>
+            element.Name.LocalName == "TextBlock"
+            && (string?)element.Attribute("Text") == "{Binding Title}");
+        var previewGrid = title.Parent ?? throw new InvalidOperationException("Note preview grid is missing.");
+        var rowHeights = previewGrid.Elements()
+            .Single(element => element.Name.LocalName == "Grid.RowDefinitions")
+            .Elements()
+            .Select(element => (string?)element.Attribute("Height"))
+            .ToArray();
+        var favoriteButton = FindNamedElement(xaml, "Button", "FavoriteButton");
+        var updatedTime = xaml.Descendants().Single(element =>
+            element.Name.LocalName == "TextBlock"
+            && ((string?)element.Attribute("Text"))?.Contains("NoteUpdatedAtDisplayConverter", StringComparison.Ordinal) == true);
+        var folderRow = xaml.Descendants().Single(element =>
+            element.Name.LocalName == "StackPanel"
+            && element.Descendants().Any(child =>
+                child.Name.LocalName == "TextBlock"
+                && (string?)child.Attribute("Text") == "{Binding FolderName}"));
+        var noteItemStyle = styles.Descendants().Single(element =>
+            element.Name.LocalName == "Style"
+            && (string?)FindAttributeByLocalName(element, "Key") == "NoteListBoxItemStyle");
+        var paddingSetter = noteItemStyle.Elements().Single(element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Padding");
+
+        Assert.Equal(new[] { "24", "24", "24" }, rowHeights);
+        Assert.Equal("12,8", (string?)paddingSetter.Attribute("Value"));
+        Assert.Equal("24", (string?)favoriteButton.Attribute("Width"));
+        Assert.Equal("24", (string?)favoriteButton.Attribute("Height"));
+        Assert.Null(updatedTime.Attribute("Margin"));
+        Assert.Equal("Center", (string?)updatedTime.Attribute("VerticalAlignment"));
+        Assert.Null(folderRow.Attribute("Margin"));
+        Assert.Equal("Center", (string?)folderRow.Attribute("VerticalAlignment"));
     }
 
     [Fact]

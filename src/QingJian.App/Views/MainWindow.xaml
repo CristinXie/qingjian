@@ -84,11 +84,11 @@
                                 ToolTipService.InitialShowDelay="0">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
-                                    <Setter Property="Content" Value="&#xE734;" />
+                                    <Setter Property="Content" Value="&#xE823;" />
                                     <Setter Property="ToolTip" Value="按收藏" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding NavigationSortMode}" Value="Favorite">
-                                            <Setter Property="Content" Value="&#xE823;" />
+                                            <Setter Property="Content" Value="&#xE734;" />
                                             <Setter Property="ToolTip" Value="按时间" />
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -152,9 +152,9 @@
                             <DataTemplate DataType="{x:Type models:Note}">
                                 <Grid>
                                     <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="24" />
+                                        <RowDefinition Height="24" />
+                                        <RowDefinition Height="24" />
                                     </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -171,6 +171,9 @@
                                     <Button x:Name="FavoriteButton"
                                             Grid.Row="0"
                                             Grid.Column="1"
+                                            Width="24"
+                                            Height="24"
+                                            MinHeight="0"
                                             Margin="8,0,0,0"
                                             FontFamily="Segoe MDL2 Assets"
                                             FontSize="14"
@@ -196,11 +199,11 @@
                                                Text="{Binding UpdatedAt, Converter={StaticResource NoteUpdatedAtDisplayConverter}}"
                                                Foreground="{StaticResource MutedTextBrush}"
                                                FontSize="11"
-                                               Margin="0,4,0,0" />
+                                               VerticalAlignment="Center" />
                                     <StackPanel Grid.Row="2"
                                                 Grid.ColumnSpan="2"
                                                 Orientation="Horizontal"
-                                                Margin="0,5,0,0">
+                                                VerticalAlignment="Center">
                                         <TextBlock Text="&#xE8B7;"
                                                    FontFamily="Segoe MDL2 Assets"
                                                    FontSize="12"

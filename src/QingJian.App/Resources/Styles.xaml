@@ -117,7 +117,7 @@
 
     <Style x:Key="NoteListBoxItemStyle" TargetType="ListBoxItem">
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        <Setter Property="Padding" Value="12,10" />
+        <Setter Property="Padding" Value="12,8" />
         <Setter Property="Margin" Value="0,0,0,4" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
