@@ -186,7 +186,9 @@ public sealed class TodoWidgetWindowXamlTests
             element => element.Name.LocalName == "TextBlock"
                 && (string?)element.Attribute("Text") == "待办内容");
         Assert.Equal("1", (string?)todoTextBox.Attribute("BorderThickness"));
-        Assert.Equal("#FFFFFF", (string?)todoTextBox.Attribute("Background"));
+        Assert.Equal(
+            "{StaticResource TodoWidgetPopoverBackgroundBrush}",
+            (string?)todoTextBox.Attribute("Background"));
         Assert.Equal("6,4", (string?)todoTextBox.Attribute("Padding"));
         Assert.Equal("64", (string?)todoTextBox.Attribute("MinHeight"));
     }
@@ -696,6 +698,36 @@ public sealed class TodoWidgetWindowXamlTests
                 element.Name.LocalName == "Border"
                 && (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == name);
             Assert.Equal("{StaticResource TodoWidgetPopoverBackgroundBrush}", (string?)popover.Attribute("Background"));
+        }
+    }
+
+    [Fact]
+    public void TodoPopoverBodyAndTimeInputs_MatchTheLightGreenBackground()
+    {
+        var xaml = XDocument.Load(FindTodoWidgetWindowXamlPath());
+        var expectedNames = new[]
+        {
+            "TodoTextBox",
+            "EditTimePickerBorder",
+            "EditStartHourTextBox",
+            "EditStartMinuteTextBox",
+            "EditEndHourTextBox",
+            "EditEndMinuteTextBox",
+            "QuickAddTextBox",
+            "QuickAddTimePickerBorder",
+            "QuickAddStartHourTextBox",
+            "QuickAddStartMinuteTextBox",
+            "QuickAddEndHourTextBox",
+            "QuickAddEndMinuteTextBox"
+        };
+
+        foreach (var name in expectedNames)
+        {
+            var element = xaml.Descendants().Single(candidate =>
+                (string?)candidate.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == name);
+            Assert.Equal(
+                "{StaticResource TodoWidgetPopoverBackgroundBrush}",
+                (string?)element.Attribute("Background"));
         }
     }
 
