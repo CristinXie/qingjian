@@ -13,6 +13,7 @@
 - 先使用完整 Markdown 管线将源码转换为纯文本，再统计纯文本。
 - Markdown 语法标记、链接目标地址、图片目标地址不计入字数。
 - 用户可见的标题、段落、链接文字、列表内容、引用内容、行内代码和代码块内容计入字数。
+- Toast UI 为连续空段落生成的独立 `<br>` 标签保留逻辑行数，但标签本身不计入字数；代码中的字面 `<br>` 仍作为可见文字计数。
 - 纯文本中的换行不计入字数；规范化为 LF 后按逻辑行统计。
 - 空内容显示 `0 行 0 字`。
 - Markdown 与所见即所得模式使用同一份便签 Markdown，因此统计结果不得因模式切换而变化。
@@ -20,7 +21,7 @@
 
 ## 技术方案
 
-在应用项目中引入 Markdig，并使用 `MarkdownPipelineBuilder.UseAdvancedExtensions()` 构建共享解析管线。`NoteNavigationHelper.FormatBodyStats` 调用 `Markdown.ToPlainText` 获得纯文本，去除解析器产生的首尾换行后复用现有行数和字数计算逻辑。
+在应用项目中引入 Markdig，并使用 `MarkdownPipelineBuilder.UseAdvancedExtensions()` 构建共享解析管线。`NoteNavigationHelper.FormatBodyStats` 使用与 `Markdown.ToPlainText` 相同的 HTML 文本渲染流程，并替换 HTML 块与内联渲染器：独立 `<br>` 输出零宽行占位符，内联 `<br>` 输出换行。随后去除解析器产生的尾部换行并计算行数和字数。
 
 正则剥离不采用，因为无法可靠处理嵌套格式、转义、链接、图片、表格和代码。WebView 回传 DOM 文本也不采用，因为会让统计依赖异步编辑器生命周期，重新引入状态不同步风险。
 

@@ -100,6 +100,11 @@ public sealed class NoteNavigationHelperTests
     [InlineData("- 第一项\n- 第二项", "2 行 6 字")]
     [InlineData("> 引用\n\n`code`", "2 行 6 字")]
     [InlineData("正文 👩‍💻", "1 行 4 字")]
+    [InlineData("<br>", "1 行 0 字")]
+    [InlineData("<br>\n<br>", "2 行 0 字")]
+    [InlineData("第一行<br>第二行", "2 行 6 字")]
+    [InlineData("`<br>`", "1 行 4 字")]
+    [InlineData("```\n<br>\n```", "1 行 4 字")]
     public void FormatBodyStats_CountsRenderedPlainText(string markdown, string expected)
     {
         Assert.Equal(expected, NoteNavigationHelper.FormatBodyStats(markdown));

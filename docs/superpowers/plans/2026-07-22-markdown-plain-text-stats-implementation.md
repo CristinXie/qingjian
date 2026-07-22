@@ -52,7 +52,7 @@ Add `PackageReference Include="Markdig" Version="1.3.2"` to the application proj
 
 - [ ] **Step 2: Implement the minimal conversion**
 
-Build one static advanced-extension pipeline, call `Markdown.ToPlainText`, normalize CRLF/CR to LF, trim renderer boundary newlines, and count lines plus non-newline characters.
+Build one static advanced-extension pipeline and render the parsed document as plain text. Replace Markdig's HTML block and inline renderers so Toast UI's standalone `<br>` empty-paragraph markers preserve line count without adding characters, while inline `<br>` becomes a newline and code literals remain untouched. Normalize CRLF/CR to LF, trim renderer boundary newlines, and count lines plus non-newline text elements.
 
 - [ ] **Step 3: Run focused tests**
 
