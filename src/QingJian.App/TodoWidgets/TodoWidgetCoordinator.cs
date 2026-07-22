@@ -42,9 +42,10 @@ public sealed class TodoWidgetCoordinator
     {
         _settings = await _settingsService.LoadAsync(cancellationToken);
         _viewModel = new TodoWidgetViewModel(_todoService, _settings.TodoWidget);
-        SetVisibility(_settings.TodoWidget.IsVisible);
+        var restoreVisible = _settings.TodoWidget.IsVisible;
+        SetVisibility(false);
 
-        if (IsVisible)
+        if (restoreVisible)
         {
             await ShowWidgetAsync(cancellationToken);
         }
