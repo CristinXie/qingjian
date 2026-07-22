@@ -59,7 +59,7 @@ public partial class MainWindow : Window
             if (args.PropertyName == nameof(MainViewModel.SelectedNote))
             {
                 UpdateTitlePlaceholderState();
-                _ = LoadSelectedNoteIntoEditorAsync();
+                _ = LoadSelectedNoteIfChangedAsync();
             }
         };
     }
@@ -124,7 +124,7 @@ public partial class MainWindow : Window
         await InitializeMarkdownEditorAsync();
         await _viewModel.LoadAsync();
         UpdateTitlePlaceholderState();
-        await LoadSelectedNoteIntoEditorAsync();
+        await LoadSelectedNoteIfChangedAsync();
     }
 
     private async void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -247,6 +247,13 @@ public partial class MainWindow : Window
             _pendingEditorMarkdown = null;
             _pendingEditorNoteId = null;
         }
+    }
+
+    private Task LoadSelectedNoteIfChangedAsync()
+    {
+        return _editorState.ShouldReloadSelection(_viewModel.SelectedNote?.Id)
+            ? LoadSelectedNoteIntoEditorAsync()
+            : Task.CompletedTask;
     }
 
     private async Task LoadSelectedNoteIntoEditorAsync()

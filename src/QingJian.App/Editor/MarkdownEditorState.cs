@@ -21,6 +21,11 @@ public sealed class MarkdownEditorState
         _isLoadingFromSelection = false;
     }
 
+    public bool ShouldReloadSelection(string? noteId)
+    {
+        return !string.Equals(CurrentNoteId, noteId, StringComparison.Ordinal);
+    }
+
     public bool TryApplyEditorMarkdown(string? noteId, string markdown, out string normalizedMarkdown)
     {
         normalizedMarkdown = markdown ?? string.Empty;

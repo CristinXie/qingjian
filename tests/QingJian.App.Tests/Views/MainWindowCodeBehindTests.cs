@@ -27,6 +27,8 @@ public sealed class MainWindowCodeBehindTests
         Assert.Contains("e.Handled = true", source, StringComparison.Ordinal);
         Assert.Contains("ToggleFavoriteAsync", source, StringComparison.Ordinal);
         Assert.Contains("收藏状态保存失败", source, StringComparison.Ordinal);
+        Assert.Contains("LoadSelectedNoteIfChangedAsync", source, StringComparison.Ordinal);
+        Assert.Contains("_editorState.ShouldReloadSelection", source, StringComparison.Ordinal);
     }
 
     private static string FindMainWindowCodeBehindPath()
