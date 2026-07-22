@@ -35,20 +35,8 @@
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
                             IsHitTestVisible="False">
-                    <Border x:Name="DragHandleLineTop"
-                            Width="24"
-                            Height="1"
-                            Margin="0,0,0,3"
-                            Background="{StaticResource MutedTextBrush}"
-                            Opacity="0.5" />
-                    <Border x:Name="DragHandleLineMiddle"
-                            Width="24"
-                            Height="1"
-                            Margin="0,0,0,3"
-                            Background="{StaticResource MutedTextBrush}"
-                            Opacity="0.5" />
-                    <Border x:Name="DragHandleLineBottom"
-                            Width="24"
+                    <Border x:Name="DragHandleLine"
+                            Width="32"
                             Height="1"
                             Background="{StaticResource MutedTextBrush}"
                             Opacity="0.5" />
@@ -101,7 +89,7 @@
                        TextWrapping="Wrap"
                        Visibility="Collapsed" />
 
-            <DockPanel Grid.Row="4" Margin="0,12,0,0" LastChildFill="False">
+            <DockPanel Grid.Row="4" Margin="0,18,0,-6" LastChildFill="False">
                 <TextBlock x:Name="BodyStatsTextBlock"
                            Text="0 行 0 字"
                            Foreground="{StaticResource MutedTextBrush}"
