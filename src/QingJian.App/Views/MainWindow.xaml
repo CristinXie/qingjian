@@ -12,6 +12,8 @@
         Background="{StaticResource AppBackgroundBrush}">
     <Window.Resources>
         <views:NoteCreatedAtDisplayConverter x:Key="NoteCreatedAtDisplayConverter" />
+        <views:NoteUpdatedAtDisplayConverter x:Key="NoteUpdatedAtDisplayConverter" />
+        <views:MarkdownBodyStatsDisplayConverter x:Key="MarkdownBodyStatsDisplayConverter" />
     </Window.Resources>
 
     <Grid>
@@ -25,74 +27,214 @@
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,1,0"
                 Padding="18,20">
-            <DockPanel>
-                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+            <DockPanel LastChildFill="True">
+                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
                     <Button Content="新建便签"
                             Command="{Binding NewNoteCommand}"
                             Style="{StaticResource PrimaryButtonStyle}" />
-                    <Button Content="显示/隐藏桌面待办"
+                    <Button x:Name="TodoWidgetToggleButton"
                             Margin="0,8,0,0"
                             Style="{StaticResource SecondaryButtonStyle}"
                             Click="ToggleTodoWidgetButton_OnClick" />
+
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="32" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0"
+                                Height="32"
+                                Margin="0,0,8,0"
+                                Background="#FAF9F7"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8" />
+                        <TextBox x:Name="NoteSearchTextBox"
+                                 Grid.Column="0"
+                                 Margin="9,0,17,0"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 AcceptsReturn="False"
+                                 VerticalContentAlignment="Center" />
+                        <TextBlock Grid.Column="0"
+                                   Text="搜索便签"
+                                   Margin="9,0,17,0"
+                                   Foreground="{StaticResource MutedTextBrush}"
+                                   VerticalAlignment="Center"
+                                   IsHitTestVisible="False">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=NoteSearchTextBox}" Value="">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <Button x:Name="NavigationSortButton"
+                                Grid.Column="1"
+                                Width="32"
+                                Height="32"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="15"
+                                Command="{Binding ToggleNavigationSortCommand}"
+                                ToolTipService.InitialShowDelay="0">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
+                                    <Setter Property="Content" Value="&#xE734;" />
+                                    <Setter Property="ToolTip" Value="按收藏" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding NavigationSortMode}" Value="Favorite">
+                                            <Setter Property="Content" Value="&#xE823;" />
+                                            <Setter Property="ToolTip" Value="按时间" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </Grid>
                 </StackPanel>
 
-                <ListBox ItemsSource="{Binding NotesView}"
-                         SelectedItem="{Binding SelectedNote, Mode=TwoWay}"
-                         ItemContainerStyle="{StaticResource NoteListBoxItemStyle}"
-                         BorderThickness="0"
-                         Background="Transparent"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                         ScrollViewer.VerticalScrollBarVisibility="Auto">
-                    <ListBox.GroupStyle>
-                        <GroupStyle>
-                            <GroupStyle.HeaderTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding Name}"
-                                               Foreground="{StaticResource MutedTextBrush}"
-                                               FontSize="12"
-                                               FontWeight="SemiBold"
-                                               Margin="2,12,0,6" />
-                                </DataTemplate>
-                            </GroupStyle.HeaderTemplate>
-                        </GroupStyle>
-                    </ListBox.GroupStyle>
-                    <ListBox.ItemTemplate>
-                        <DataTemplate DataType="{x:Type models:Note}">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
+                <StackPanel DockPanel.Dock="Bottom"
+                            Orientation="Horizontal"
+                            Margin="0,12,0,0">
+                    <Button x:Name="SettingsButton"
+                            Content="&#xE713;"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="15"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="设置"
+                            ToolTipService.InitialShowDelay="0" />
+                    <Button x:Name="FolderButton"
+                            Content="&#xE8B7;"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="15"
+                            Margin="8,0,0,0"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="文件夹"
+                            ToolTipService.InitialShowDelay="0" />
+                    <Button x:Name="BatchManagementButton"
+                            Content="&#xE762;"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="15"
+                            Margin="8,0,0,0"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="批量管理"
+                            ToolTipService.InitialShowDelay="0" />
+                </StackPanel>
 
-                                <TextBlock Grid.Row="0"
-                                           Grid.ColumnSpan="2"
-                                           Text="{Binding Title}"
-                                           Foreground="{StaticResource TextBrush}"
-                                           FontWeight="SemiBold"
-                                           TextTrimming="CharacterEllipsis" />
-                                <TextBlock Grid.Row="1"
-                                           Grid.Column="0"
-                                           Text="{Binding Content}"
-                                           Foreground="{StaticResource MutedTextBrush}"
-                                           FontSize="12"
-                                           Margin="0,5,0,0"
-                                           MaxHeight="34"
-                                           TextWrapping="Wrap" />
-                                <TextBlock Grid.Row="1"
-                                           Grid.Column="1"
-                                           Text="{Binding UpdatedAt, StringFormat={}{0:MM-dd HH:mm}}"
-                                           Foreground="{StaticResource MutedTextBrush}"
-                                           FontSize="11"
-                                           Margin="12,5,0,0"
-                                           VerticalAlignment="Top" />
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                <Grid>
+                    <ListBox ItemsSource="{Binding NotesView}"
+                             SelectedItem="{Binding SelectedNote, Mode=OneWay}"
+                             SelectionChanged="NoteListBox_OnSelectionChanged"
+                             ItemContainerStyle="{StaticResource NoteListBoxItemStyle}"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        <ListBox.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}"
+                                                   Foreground="{StaticResource MutedTextBrush}"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Margin="2,12,0,6" />
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ListBox.GroupStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type models:Note}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Row="0"
+                                               Grid.Column="0"
+                                               Text="{Binding Title}"
+                                               Foreground="{StaticResource TextBrush}"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <Button x:Name="FavoriteButton"
+                                            Grid.Row="0"
+                                            Grid.Column="1"
+                                            Margin="8,0,0,0"
+                                            FontFamily="Segoe MDL2 Assets"
+                                            FontSize="14"
+                                            Focusable="False"
+                                            ToolTipService.InitialShowDelay="0"
+                                            PreviewMouseLeftButtonDown="FavoriteButton_OnPreviewMouseLeftButtonDown">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
+                                                <Setter Property="Content" Value="&#xE734;" />
+                                                <Setter Property="ToolTip" Value="收藏" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsFavorite}" Value="True">
+                                                        <Setter Property="Content" Value="&#xE735;" />
+                                                        <Setter Property="Foreground" Value="#F5C542" />
+                                                        <Setter Property="ToolTip" Value="取消收藏" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <TextBlock Grid.Row="1"
+                                               Grid.ColumnSpan="2"
+                                               Text="{Binding UpdatedAt, Converter={StaticResource NoteUpdatedAtDisplayConverter}}"
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               FontSize="11"
+                                               Margin="0,4,0,0" />
+                                    <StackPanel Grid.Row="2"
+                                                Grid.ColumnSpan="2"
+                                                Orientation="Horizontal"
+                                                Margin="0,5,0,0">
+                                        <TextBlock Text="&#xE8B7;"
+                                                   FontFamily="Segoe MDL2 Assets"
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource MutedTextBrush}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding FolderName}"
+                                                   Foreground="{StaticResource MutedTextBrush}"
+                                                   FontSize="11"
+                                                   Margin="5,0,0,0"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <TextBlock x:Name="NoSearchResultsTextBlock"
+                               Text="没有匹配的便签"
+                               Foreground="{StaticResource MutedTextBrush}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Top"
+                               Margin="0,28,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ShowNoSearchResults}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
             </DockPanel>
         </Border>
 
@@ -200,15 +342,23 @@
                                    Foreground="{StaticResource MutedTextBrush}"
                                    TextWrapping="Wrap" />
                     </Border>
-                    <Border Grid.Row="1"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="0,1,0,0"
-                            Padding="12,7">
+                    <Grid Grid.Row="1" Margin="12,7">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="BodyStatsTextBlock"
+                                   Grid.Column="0"
+                                   Text="{Binding SelectedNote.Content, Converter={StaticResource MarkdownBodyStatsDisplayConverter}}"
+                                   Foreground="{StaticResource MutedTextBrush}"
+                                   FontSize="11" />
                         <TextBlock x:Name="CreatedAtTextBlock"
+                                   Grid.Column="1"
+                                   HorizontalAlignment="Right"
                                    Text="{Binding SelectedNote.CreatedAt, Converter={StaticResource NoteCreatedAtDisplayConverter}}"
                                    Foreground="{StaticResource MutedTextBrush}"
                                    FontSize="11" />
-                    </Border>
+                    </Grid>
                 </Grid>
             </Border>
         </Grid>

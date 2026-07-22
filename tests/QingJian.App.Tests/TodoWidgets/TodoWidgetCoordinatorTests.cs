@@ -113,6 +113,28 @@ public sealed class TodoWidgetCoordinatorTests
         Assert.Equal(AppSettings.MarkdownEditorMode, settings.EditorMode);
     }
 
+    [Fact]
+    public async Task VisibilityChanged_ReportsShowAndHideTransitions()
+    {
+        var folder = CreateTempFolder();
+        var settingsService = new AppSettingsService(folder);
+        await settingsService.SaveAsync(new AppSettings(
+            AppSettings.DefaultEditorMode,
+            TodoWidgetPreferences.Default with { IsVisible = false }));
+        var coordinator = new TodoWidgetCoordinator(
+            new RecordingTodoService(),
+            settingsService,
+            (viewModel, _) => new FakeTodoWidgetWindow());
+        var changes = new List<bool>();
+        coordinator.VisibilityChanged += (_, isVisible) => changes.Add(isVisible);
+
+        await coordinator.InitializeAsync();
+        await coordinator.ShowWidgetAsync();
+        await coordinator.HideWidgetAsync();
+
+        Assert.Equal(new[] { true, false }, changes);
+    }
+
     private static string CreateTempFolder()
     {
         var folder = Path.Combine(Path.GetTempPath(), "qingjian-coordinator-tests", Guid.NewGuid().ToString("N"));

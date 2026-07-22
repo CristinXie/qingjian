@@ -10,6 +10,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Web.WebView2.Core;
 using QingJian.App.Editor;
+using QingJian.App.Models;
 using QingJian.App.Services;
 using QingJian.App.TodoWidgets;
 using QingJian.App.ViewModels;
@@ -47,6 +48,8 @@ public partial class MainWindow : Window
         _attachmentService = attachmentService;
         _todoWidgetCoordinator = todoWidgetCoordinator;
         DataContext = _viewModel;
+        _todoWidgetCoordinator.VisibilityChanged += OnTodoWidgetVisibilityChanged;
+        UpdateTodoWidgetToggleLabel(_todoWidgetCoordinator.IsVisible);
         Loaded += OnLoaded;
         Activated += (_, _) => _viewModel.RefreshNoteNavigation();
         Closing += OnClosing;
@@ -64,6 +67,54 @@ public partial class MainWindow : Window
     private async void ToggleTodoWidgetButton_OnClick(object sender, RoutedEventArgs e)
     {
         await _todoWidgetCoordinator.ToggleWidgetVisibilityAsync();
+    }
+
+    private void OnTodoWidgetVisibilityChanged(object? sender, bool isVisible)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => UpdateTodoWidgetToggleLabel(isVisible));
+            return;
+        }
+
+        UpdateTodoWidgetToggleLabel(isVisible);
+    }
+
+    private void UpdateTodoWidgetToggleLabel(bool isVisible)
+    {
+        TodoWidgetToggleButton.Content = TodoWidgetVisibilityAction.GetLabel(isVisible);
+    }
+
+    private void NoteListBox_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (e.AddedItems.OfType<Note>().FirstOrDefault() is { } note)
+        {
+            _viewModel.SelectedNote = note;
+        }
+    }
+
+    private async void FavoriteButton_OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+
+        if (sender is not FrameworkElement { DataContext: Note note })
+        {
+            return;
+        }
+
+        try
+        {
+            await _viewModel.ToggleFavoriteAsync(note);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                this,
+                $"收藏状态保存失败。\n\n{ex.Message}",
+                "QingJian",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)

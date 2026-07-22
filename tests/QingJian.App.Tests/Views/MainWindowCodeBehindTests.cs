@@ -20,6 +20,13 @@ public sealed class MainWindowCodeBehindTests
         Assert.Contains("window.qingjianEditor.focus()", source, StringComparison.Ordinal);
         Assert.Contains("RefreshNoteNavigation()", source, StringComparison.Ordinal);
         Assert.Contains("关闭前无法保存当前便签", source, StringComparison.Ordinal);
+        Assert.Contains("VisibilityChanged", source, StringComparison.Ordinal);
+        Assert.Contains("TodoWidgetVisibilityAction.GetLabel", source, StringComparison.Ordinal);
+        Assert.Contains("NoteListBox_OnSelectionChanged", source, StringComparison.Ordinal);
+        Assert.Contains("FavoriteButton_OnPreviewMouseLeftButtonDown", source, StringComparison.Ordinal);
+        Assert.Contains("e.Handled = true", source, StringComparison.Ordinal);
+        Assert.Contains("ToggleFavoriteAsync", source, StringComparison.Ordinal);
+        Assert.Contains("收藏状态保存失败", source, StringComparison.Ordinal);
     }
 
     private static string FindMainWindowCodeBehindPath()

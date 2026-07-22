@@ -6,17 +6,96 @@ namespace QingJian.App.Tests.Views;
 public sealed class MainWindowXamlTests
 {
     [Fact]
-    public void Sidebar_ContainsTodoWidgetToggleButton()
+    public void Sidebar_ContainsDynamicTodoWidgetToggleButton()
     {
         var xaml = XDocument.Load(FindMainWindowXamlPath());
 
-        var toggleButton = xaml
-            .Descendants()
-            .Single(element => element.Name.LocalName == "Button"
-                && (string?)element.Attribute("Content") == "显示/隐藏桌面待办");
+        var toggleButton = FindNamedElement(xaml, "Button", "TodoWidgetToggleButton");
 
         Assert.Equal("ToggleTodoWidgetButton_OnClick", (string?)toggleButton.Attribute("Click"));
         Assert.Equal("{StaticResource SecondaryButtonStyle}", (string?)toggleButton.Attribute("Style"));
+        Assert.NotEqual("显示/隐藏桌面待办", (string?)toggleButton.Attribute("Content"));
+    }
+
+    [Fact]
+    public void Sidebar_SearchAndSortControlsShareTheRowBelowTodoAction()
+    {
+        var xaml = XDocument.Load(FindMainWindowXamlPath());
+        var searchBox = FindNamedElement(xaml, "TextBox", "NoteSearchTextBox");
+        var sortButton = FindNamedElement(xaml, "Button", "NavigationSortButton");
+
+        Assert.Same(searchBox.Parent, sortButton.Parent);
+        Assert.Equal("{Binding SearchText, UpdateSourceTrigger=PropertyChanged}", (string?)searchBox.Attribute("Text"));
+        Assert.Equal("{Binding ToggleNavigationSortCommand}", (string?)sortButton.Attribute("Command"));
+        Assert.Equal("32", (string?)sortButton.Attribute("Width"));
+        Assert.Contains(sortButton.Descendants(), element =>
+            element.Name.LocalName == "DataTrigger"
+            && (string?)element.Attribute("Value") == "Favorite");
+        Assert.Contains(sortButton.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Value") == "按时间");
+        Assert.Contains(sortButton.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Value") == "按收藏");
+    }
+
+    [Fact]
+    public void NoteList_UsesThreeRowPreviewWithFavoriteTimeAndFolder()
+    {
+        var xaml = XDocument.Load(FindMainWindowXamlPath());
+        var favoriteButton = FindNamedElement(xaml, "Button", "FavoriteButton");
+
+        Assert.Equal("FavoriteButton_OnPreviewMouseLeftButtonDown", (string?)favoriteButton.Attribute("PreviewMouseLeftButtonDown"));
+        Assert.Equal("0", (string?)FindAttributeByLocalName(favoriteButton, "ToolTipService.InitialShowDelay"));
+        Assert.Contains(favoriteButton.Descendants(), element =>
+            element.Name.LocalName == "DataTrigger"
+            && (string?)element.Attribute("Binding") == "{Binding IsFavorite}"
+            && (string?)element.Attribute("Value") == "True");
+        Assert.Contains(favoriteButton.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Value") == "#F5C542");
+        Assert.Contains(xaml.Descendants(), element =>
+            element.Name.LocalName == "TextBlock"
+            && ((string?)element.Attribute("Text"))?.Contains("NoteUpdatedAtDisplayConverter", StringComparison.Ordinal) == true);
+        Assert.Contains(xaml.Descendants(), element =>
+            element.Name.LocalName == "TextBlock"
+            && (string?)element.Attribute("Text") == "{Binding FolderName}");
+    }
+
+    [Fact]
+    public void NoteList_PreservesEditorSelectionAndShowsSearchEmptyState()
+    {
+        var xaml = XDocument.Load(FindMainWindowXamlPath());
+        var listBox = xaml.Descendants().Single(element => element.Name.LocalName == "ListBox");
+        var emptyText = FindNamedElement(xaml, "TextBlock", "NoSearchResultsTextBlock");
+
+        Assert.Equal("{Binding SelectedNote, Mode=OneWay}", (string?)listBox.Attribute("SelectedItem"));
+        Assert.Equal("NoteListBox_OnSelectionChanged", (string?)listBox.Attribute("SelectionChanged"));
+        Assert.Equal("没有匹配的便签", (string?)emptyText.Attribute("Text"));
+        Assert.Contains(emptyText.Descendants(), element =>
+            element.Name.LocalName == "DataTrigger"
+            && (string?)element.Attribute("Binding") == "{Binding ShowNoSearchResults}"
+            && (string?)element.Attribute("Value") == "True");
+    }
+
+    [Fact]
+    public void Sidebar_FooterContainsThreeFixedNoOpIconButtonsInOrder()
+    {
+        var xaml = XDocument.Load(FindMainWindowXamlPath());
+        var expected = new[] { "SettingsButton", "FolderButton", "BatchManagementButton" };
+        var buttons = xaml.Descendants()
+            .Where(element => element.Name.LocalName == "Button")
+            .Where(element => expected.Contains((string?)FindAttributeByLocalName(element, "Name")))
+            .ToArray();
+
+        Assert.Equal(expected, buttons.Select(button => (string?)FindAttributeByLocalName(button, "Name")));
+        Assert.All(buttons, button =>
+        {
+            Assert.Null(button.Attribute("Command"));
+            Assert.Null(button.Attribute("Click"));
+            Assert.Equal("{StaticResource IconButtonStyle}", (string?)button.Attribute("Style"));
+            Assert.Equal("0", (string?)FindAttributeByLocalName(button, "ToolTipService.InitialShowDelay"));
+        });
     }
 
     [Fact]
@@ -115,6 +194,16 @@ public sealed class MainWindowXamlTests
             xaml.Descendants(),
             element => element.Name.LocalName == "NoteCreatedAtDisplayConverter"
                 && (string?)FindAttributeByLocalName(element, "Key") == "NoteCreatedAtDisplayConverter");
+
+        var stats = FindNamedElement(xaml, "TextBlock", "BodyStatsTextBlock");
+        var footer = stats.Parent;
+        Assert.NotNull(footer);
+        Assert.Equal("Grid", footer!.Name.LocalName);
+        Assert.Contains("SelectedNote.Content", (string?)stats.Attribute("Text"));
+        Assert.Contains("MarkdownBodyStatsDisplayConverter", (string?)stats.Attribute("Text"));
+        Assert.Equal("Right", (string?)createdAtTextBlock.Attribute("HorizontalAlignment"));
+        Assert.Null(footer.Attribute("BorderThickness"));
+        Assert.Null(footer.Attribute("BorderBrush"));
     }
 
     [Fact]
@@ -155,7 +244,8 @@ public sealed class MainWindowXamlTests
         var sidebarButtons = xaml
             .Descendants()
             .Where(element => element.Name.LocalName == "Button"
-                && (string?)element.Attribute("Content") is "新建便签" or "显示/隐藏桌面待办")
+                && ((string?)element.Attribute("Content") == "新建便签"
+                    || (string?)FindAttributeByLocalName(element, "Name") == "TodoWidgetToggleButton"))
             .ToArray();
 
         Assert.NotEmpty(sidebarButtons);
