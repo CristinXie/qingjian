@@ -98,7 +98,9 @@ public static class TodoWidgetDraftParser
         {
             timeKind = TodoTimeKind.Single;
         }
-        else if (startTime is not null && endTime is not null && startTime < endTime)
+        else if (startTime is not null &&
+                 endTime is not null &&
+                 TodoTimeRangeRules.IsValidRange(startTime.Value, endTime.Value))
         {
             timeKind = TodoTimeKind.Range;
         }
