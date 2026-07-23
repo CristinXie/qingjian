@@ -42,7 +42,50 @@ public sealed class TodoServiceTests
     }
 
     [Fact]
-    public async Task CreateTodoAsync_RejectsInvalidTimeRange()
+    public async Task CreateTodoAsync_AcceptsOvernightRangeAndKeepsStartDate()
+    {
+        var service = new TodoService(new InMemoryTodoRepository());
+        var date = new DateOnly(2026, 7, 23);
+
+        var todo = await service.CreateTodoAsync(new TodoDraft(
+            date,
+            "夜间值班",
+            TodoTimeKind.Range,
+            new TimeOnly(23, 0),
+            new TimeOnly(1, 0)));
+
+        Assert.Equal(date, todo.Date);
+        Assert.Equal(new TimeOnly(23, 0), todo.StartTime);
+        Assert.Equal(new TimeOnly(1, 0), todo.EndTime);
+    }
+
+    [Fact]
+    public async Task UpdateTodoAsync_ChangesSameDayRangeToOvernightWithoutChangingStartDate()
+    {
+        var repository = new InMemoryTodoRepository();
+        var service = new TodoService(repository);
+        var date = new DateOnly(2026, 7, 23);
+        var todo = await service.CreateTodoAsync(new TodoDraft(
+            date,
+            "值班",
+            TodoTimeKind.Range,
+            new TimeOnly(20, 0),
+            new TimeOnly(21, 0)));
+
+        await service.UpdateTodoAsync(todo, new TodoDraft(
+            date,
+            "值班",
+            TodoTimeKind.Range,
+            new TimeOnly(23, 0),
+            new TimeOnly(1, 0)));
+
+        Assert.Equal(date, todo.Date);
+        Assert.Equal(new TimeOnly(23, 0), todo.StartTime);
+        Assert.Equal(new TimeOnly(1, 0), todo.EndTime);
+    }
+
+    [Fact]
+    public async Task CreateTodoAsync_RejectsRangeWhereTimesAreEqual()
     {
         var service = new TodoService(new InMemoryTodoRepository());
 
@@ -52,7 +95,7 @@ public sealed class TodoServiceTests
                 "Invalid",
                 TodoTimeKind.Range,
                 new TimeOnly(12, 0),
-                new TimeOnly(11, 0))));
+                new TimeOnly(12, 0))));
     }
 
     [Fact]

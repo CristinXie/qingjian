@@ -105,9 +105,13 @@ public sealed class TodoService : ITodoService
             TodoTimeKind.Single when draft.StartTime is not null => draft with { EndTime = null },
             TodoTimeKind.Range when draft.StartTime is not null &&
                                     draft.EndTime is not null &&
-                                    draft.EndTime > draft.StartTime => draft,
+                                    TodoTimeRangeRules.IsValidRange(
+                                        draft.StartTime.Value,
+                                        draft.EndTime.Value) => draft,
             TodoTimeKind.Single => throw new ArgumentException("Single-time todos require a start time.", nameof(draft)),
-            TodoTimeKind.Range => throw new ArgumentException("Time ranges require an end time later than the start time.", nameof(draft)),
+            TodoTimeKind.Range => throw new ArgumentException(
+                "Time ranges require different start and end times.",
+                nameof(draft)),
             _ => throw new ArgumentOutOfRangeException(nameof(draft), "Unsupported todo time kind.")
         };
     }
