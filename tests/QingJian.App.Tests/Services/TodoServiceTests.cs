@@ -124,7 +124,8 @@ public sealed class TodoServiceTests
             CreateTodo("done", date, "Done", true, null, null, new DateTime(2026, 7, 13, 12, 0, 0, DateTimeKind.Utc)),
             CreateTodo("untimed", date, "Untimed", false, null, null, null),
             CreateTodo("early", date, "Early", false, new TimeOnly(9, 0), null, null),
-            CreateTodo("late", date, "Late", false, new TimeOnly(15, 0), null, null)
+            CreateTodo("late", date, "Late", false, new TimeOnly(15, 0), null, null),
+            CreateTodo("overnight", date, "Overnight", false, new TimeOnly(23, 0), new TimeOnly(1, 0), null)
         };
 
         var sorted = service.SortTodos(todos);
@@ -133,6 +134,7 @@ public sealed class TodoServiceTests
             sorted,
             todo => Assert.Equal("early", todo.Id),
             todo => Assert.Equal("late", todo.Id),
+            todo => Assert.Equal("overnight", todo.Id),
             todo => Assert.Equal("untimed", todo.Id),
             todo => Assert.Equal("done", todo.Id));
     }

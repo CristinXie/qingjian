@@ -38,6 +38,19 @@ public sealed class TodoPreviewDisplayConverterTests
         Assert.Equal("09:30-10:45 专注工作", Convert(todo));
     }
 
+    [Fact]
+    public void Convert_PrefixesOvernightRangeWithNextDayLabel()
+    {
+        var todo = new TodoItem
+        {
+            Text = "夜间值班",
+            StartTime = new TimeOnly(23, 0),
+            EndTime = new TimeOnly(1, 0)
+        };
+
+        Assert.Equal("23:00-次日 01:00 夜间值班", Convert(todo));
+    }
+
     private string Convert(TodoItem todo)
     {
         return (string)_converter.Convert(todo, typeof(string), null!, CultureInfo.InvariantCulture);
