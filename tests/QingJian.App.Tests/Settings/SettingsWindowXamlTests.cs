@@ -21,6 +21,25 @@ public sealed class SettingsWindowXamlTests
             .Select(element => (string?)element.Attribute("Header"))
             .ToArray();
         Assert.Equal(new[] { "常规", "编辑", "快捷便签", "桌面待办", "数据", "关于" }, headers);
+
+        var tabControl = FindNamedElement(xaml, "SettingsTabControl");
+        Assert.Equal("Stretch", (string?)tabControl.Attribute("HorizontalContentAlignment"));
+        Assert.Equal("Stretch", (string?)tabControl.Attribute("VerticalContentAlignment"));
+
+        var tabStyle = xaml.Descendants().Single(element =>
+            element.Name.LocalName == "Style"
+            && (string?)FindAttributeByLocalName(element, "Key") == "SettingsTabItemStyle");
+        Assert.Contains(tabStyle.Elements(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "HorizontalContentAlignment"
+            && (string?)element.Attribute("Value") == "Stretch");
+        Assert.Contains(tabStyle.Elements(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "VerticalContentAlignment"
+            && (string?)element.Attribute("Value") == "Stretch");
+        Assert.DoesNotContain(tabStyle.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "FontWeight");
     }
 
     [Fact]

@@ -38,7 +38,7 @@ public sealed class SettingsCoordinator
 
     public async Task<SettingsState> LoadAsync(CancellationToken cancellationToken = default)
     {
-        var settings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var settings = await _settingsService.LoadAsync(cancellationToken);
         return new SettingsState(
             settings,
             _startupService.IsEnabled,
@@ -63,7 +63,7 @@ public sealed class SettingsCoordinator
             return SettingsSaveResult.Failure(InvalidHotkeyMessage);
         }
 
-        var oldSettings = await _settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var oldSettings = await _settingsService.LoadAsync(cancellationToken);
         var oldStartup = _startupService.IsEnabled;
         var oldHotkey = _hotkeyCoordinator.CurrentPreferences;
         var oldTodo = _todoWidgetCoordinator.CapturePreferences();
@@ -96,7 +96,7 @@ public sealed class SettingsCoordinator
                     QuickNoteHotkey = hotkey,
                     TodoWidget = todo
                 },
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken);
 
             await _applyEditorMode(editorMode);
             await _todoWidgetCoordinator.ApplyRuntimePreferencesAsync(todo, cancellationToken);
@@ -111,7 +111,7 @@ public sealed class SettingsCoordinator
                 oldTodo,
                 hotkeyTouched,
                 startupTouched,
-                settingsTouched).ConfigureAwait(false);
+                settingsTouched);
             var message = $"保存设置失败：{ex.Message}";
             if (rollbackFailed)
             {
@@ -163,7 +163,7 @@ public sealed class SettingsCoordinator
     {
         try
         {
-            await rollback().ConfigureAwait(false);
+            await rollback();
             return true;
         }
         catch (Exception)
