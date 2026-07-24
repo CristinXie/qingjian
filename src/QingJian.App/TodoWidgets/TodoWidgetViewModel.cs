@@ -199,6 +199,16 @@ public sealed class TodoWidgetViewModel : ViewModelBase
             CalendarMonth: CalendarMonth.Month).Normalize();
     }
 
+    public void ApplyPreferences(TodoWidgetPreferences preferences)
+    {
+        var normalized = preferences.Normalize();
+        SetMode(normalized.Mode);
+        IsLocked = normalized.IsLocked;
+        Opacity = normalized.Opacity;
+        CalendarMonth = new DateOnly(normalized.CalendarYear, normalized.CalendarMonth, 1);
+        OnPropertyChanged(nameof(CalendarDates));
+    }
+
     public IReadOnlyList<TodoItem> TodosForDate(DateOnly date)
     {
         return _todoService.SortTodos(VisibleTodos.Where(todo => todo.Date == date));

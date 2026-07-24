@@ -157,6 +157,62 @@ public sealed class TodoWidgetCoordinatorTests
         Assert.True(windowWasVisibleWhenReported);
     }
 
+    [Fact]
+    public async Task CapturePreferences_UsesLatestWindowPosition()
+    {
+        var folder = CreateTempFolder();
+        var settingsService = new AppSettingsService(folder);
+        FakeTodoWidgetWindow? window = null;
+        var coordinator = new TodoWidgetCoordinator(
+            new RecordingTodoService(),
+            settingsService,
+            (viewModel, _) => window = new FakeTodoWidgetWindow());
+        await coordinator.InitializeAsync();
+        window!.Left = 240;
+        window.Top = 170;
+
+        var preferences = coordinator.CapturePreferences();
+
+        Assert.Equal(240, preferences.Left);
+        Assert.Equal(170, preferences.Top);
+    }
+
+    [Fact]
+    public async Task ApplyRuntimePreferencesAsync_UpdatesWindowWithoutPersistingAgain()
+    {
+        var folder = CreateTempFolder();
+        var settingsService = new AppSettingsService(folder);
+        FakeTodoWidgetWindow? window = null;
+        var coordinator = new TodoWidgetCoordinator(
+            new RecordingTodoService(),
+            settingsService,
+            (viewModel, _) => window = new FakeTodoWidgetWindow());
+        await coordinator.InitializeAsync();
+        var persistedBeforeApply = await settingsService.LoadAsync();
+        var preferences = coordinator.CapturePreferences() with
+        {
+            IsVisible = false,
+            Mode = TodoWidgetMode.Today,
+            Left = 120,
+            Top = 130,
+            Opacity = 0.52,
+            IsLocked = true
+        };
+
+        await coordinator.ApplyRuntimePreferencesAsync(preferences);
+        var runtime = coordinator.CapturePreferences();
+        var persistedAfterApply = await settingsService.LoadAsync();
+
+        Assert.False(window!.IsVisible);
+        Assert.False(coordinator.IsVisible);
+        Assert.Equal(120, window.Left);
+        Assert.Equal(130, window.Top);
+        Assert.Equal(TodoWidgetMode.Today, runtime.Mode);
+        Assert.Equal(0.52, runtime.Opacity);
+        Assert.True(runtime.IsLocked);
+        Assert.Equal(persistedBeforeApply.TodoWidget, persistedAfterApply.TodoWidget);
+    }
+
     private static string CreateTempFolder()
     {
         var folder = Path.Combine(Path.GetTempPath(), "qingjian-coordinator-tests", Guid.NewGuid().ToString("N"));
