@@ -1,6 +1,7 @@
 using System.Text.Json;
 using QingJian.App.Services;
 using QingJian.App.TodoWidgets;
+using QingJian.App.Hotkeys;
 using Xunit;
 
 namespace QingJian.App.Tests.Services;
@@ -31,6 +32,7 @@ public sealed class AppSettingsServiceTodoWidgetTests
 
         Assert.Equal(AppSettings.MarkdownEditorMode, settings.EditorMode);
         Assert.Equal(TodoWidgetPreferences.Default, settings.TodoWidget);
+        Assert.Equal(QuickNoteHotkeyPreferences.Default, settings.QuickNoteHotkey);
     }
 
     [Fact]
@@ -54,6 +56,7 @@ public sealed class AppSettingsServiceTodoWidgetTests
         var loaded = await service.LoadAsync();
 
         Assert.Equal(preferences, loaded.TodoWidget);
+        Assert.Equal(QuickNoteHotkeyPreferences.Default, loaded.QuickNoteHotkey);
     }
 
     [Fact]
