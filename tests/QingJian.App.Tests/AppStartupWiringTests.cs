@@ -25,6 +25,26 @@ public sealed class AppStartupWiringTests
         Assert.Equal("OnMainWindowClose", (string?)appXaml.Root?.Attribute("ShutdownMode"));
     }
 
+    [Fact]
+    public void Startup_WiresSettingsAndConfigurableHotkeyServices()
+    {
+        var source = File.ReadAllText(FindAppSourcePath());
+
+        Assert.Contains("await settingsService.LoadAsync()", source, StringComparison.Ordinal);
+        Assert.Contains("new WindowsStartupRegistrationService", source, StringComparison.Ordinal);
+        Assert.Contains("new AppStorageInfoService(appDataFolder)", source, StringComparison.Ordinal);
+        Assert.Contains("new AppRuntimeInfoProvider()", source, StringComparison.Ordinal);
+        Assert.Contains("new QuickNoteHotkeyCoordinator", source, StringComparison.Ordinal);
+        Assert.Contains("new SettingsCoordinator", source, StringComparison.Ordinal);
+        Assert.Contains("_hotkeyService.Attach(window)", source, StringComparison.Ordinal);
+        Assert.Contains("initialSettings.QuickNoteHotkey", source, StringComparison.Ordinal);
+        Assert.Contains("window.SettingsRequested", source, StringComparison.Ordinal);
+        Assert.Contains("_settingsWindow", source, StringComparison.Ordinal);
+        Assert.Contains("_settingsWindow.Activate()", source, StringComparison.Ordinal);
+        Assert.Contains("new SettingsWindow(settingsCoordinator)", source, StringComparison.Ordinal);
+        Assert.Contains("Environment.ProcessPath", source, StringComparison.Ordinal);
+    }
+
     private static string FindAppSourcePath()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

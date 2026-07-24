@@ -18,6 +18,17 @@ public sealed class MainWindowXamlTests
     }
 
     [Fact]
+    public void SettingsButton_RaisesSettingsRequest()
+    {
+        var xaml = XDocument.Load(FindMainWindowXamlPath());
+
+        var settingsButton = FindNamedElement(xaml, "Button", "SettingsButton");
+
+        Assert.Equal("SettingsButton_OnClick", (string?)settingsButton.Attribute("Click"));
+        Assert.Equal("设置", (string?)settingsButton.Attribute("ToolTip"));
+    }
+
+    [Fact]
     public void Sidebar_SearchAndSortControlsShareTheRowBelowTodoAction()
     {
         var xaml = XDocument.Load(FindMainWindowXamlPath());
@@ -135,7 +146,7 @@ public sealed class MainWindowXamlTests
     }
 
     [Fact]
-    public void Sidebar_FooterContainsThreeFixedNoOpIconButtonsInOrder()
+    public void Sidebar_FooterWiresSettingsAndKeepsOtherPlaceholderButtonsInOrder()
     {
         var xaml = XDocument.Load(FindMainWindowXamlPath());
         var expected = new[] { "SettingsButton", "FolderButton", "BatchManagementButton" };
@@ -145,10 +156,14 @@ public sealed class MainWindowXamlTests
             .ToArray();
 
         Assert.Equal(expected, buttons.Select(button => (string?)FindAttributeByLocalName(button, "Name")));
-        Assert.All(buttons, button =>
+        Assert.Equal("SettingsButton_OnClick", (string?)buttons[0].Attribute("Click"));
+        Assert.All(buttons.Skip(1), button =>
         {
             Assert.Null(button.Attribute("Command"));
             Assert.Null(button.Attribute("Click"));
+        });
+        Assert.All(buttons, button =>
+        {
             Assert.Equal("{StaticResource IconButtonStyle}", (string?)button.Attribute("Style"));
             Assert.Equal("0", (string?)FindAttributeByLocalName(button, "ToolTipService.InitialShowDelay"));
         });

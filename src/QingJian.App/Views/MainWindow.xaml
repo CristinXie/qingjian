@@ -107,7 +107,8 @@
                             FontSize="15"
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="设置"
-                            ToolTipService.InitialShowDelay="0" />
+                            ToolTipService.InitialShowDelay="0"
+                            Click="SettingsButton_OnClick" />
                     <Button x:Name="FolderButton"
                             Content="&#xE8B7;"
                             FontFamily="Segoe MDL2 Assets"

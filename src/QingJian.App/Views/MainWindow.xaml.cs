@@ -36,6 +36,8 @@ public partial class MainWindow : Window
     private string? _pendingEditorNoteId;
     private string? _pendingEditorMarkdown;
 
+    public event EventHandler? SettingsRequested;
+
     public MainWindow(
         MainViewModel viewModel,
         AppSettingsService settingsService,
@@ -67,6 +69,11 @@ public partial class MainWindow : Window
     private async void ToggleTodoWidgetButton_OnClick(object sender, RoutedEventArgs e)
     {
         await _todoWidgetCoordinator.ToggleWidgetVisibilityAsync();
+    }
+
+    private void SettingsButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        SettingsRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnTodoWidgetVisibilityChanged(object? sender, bool isVisible)
@@ -400,6 +407,13 @@ public partial class MainWindow : Window
     {
         var settings = await _settingsService.SaveEditorModeAsync(editorMode);
         _currentEditorMode = settings.EditorMode;
+        UpdateModeToggleToolTip();
+    }
+
+    public async Task ApplyEditorModePreferenceAsync(string editorMode)
+    {
+        _currentEditorMode = new AppSettings(editorMode).Normalize().EditorMode;
+        await SetEditorModeAsync(_currentEditorMode);
         UpdateModeToggleToolTip();
     }
 

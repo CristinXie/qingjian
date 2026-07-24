@@ -29,6 +29,11 @@ public sealed class MainWindowCodeBehindTests
         Assert.Contains("收藏状态保存失败", source, StringComparison.Ordinal);
         Assert.Contains("LoadSelectedNoteIfChangedAsync", source, StringComparison.Ordinal);
         Assert.Contains("_editorState.ShouldReloadSelection", source, StringComparison.Ordinal);
+        Assert.Contains("public event EventHandler? SettingsRequested", source, StringComparison.Ordinal);
+        Assert.Contains("SettingsButton_OnClick", source, StringComparison.Ordinal);
+        Assert.Contains("SettingsRequested?.Invoke", source, StringComparison.Ordinal);
+        Assert.Contains("public async Task ApplyEditorModePreferenceAsync", source, StringComparison.Ordinal);
+        Assert.Contains("await SetEditorModeAsync(_currentEditorMode)", source, StringComparison.Ordinal);
     }
 
     private static string FindMainWindowCodeBehindPath()
