@@ -55,6 +55,6 @@ public sealed class TodoTimeDisplayConverterTests
 
         var text = converter.Convert(todo, typeof(string), null!, CultureInfo.InvariantCulture);
 
-        Assert.Equal("23:00-次日 01:00", text);
+        Assert.Equal("23:00-次日\n01:00", text);
     }
 }

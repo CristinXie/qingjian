@@ -48,7 +48,7 @@ public sealed class TodoPreviewDisplayConverterTests
             EndTime = new TimeOnly(1, 0)
         };
 
-        Assert.Equal("23:00-次日 01:00 夜间值班", Convert(todo));
+        Assert.Equal("23:00-次日\n01:00 夜间值班", Convert(todo));
     }
 
     private string Convert(TodoItem todo)

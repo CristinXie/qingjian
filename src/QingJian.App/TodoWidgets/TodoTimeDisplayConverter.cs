@@ -21,7 +21,7 @@ public sealed class TodoTimeDisplayConverter : IValueConverter
 
         var end = todo.EndTime.Value.ToString("HH:mm", CultureInfo.InvariantCulture);
         return TodoTimeRangeRules.IsOvernight(todo.StartTime.Value, todo.EndTime.Value)
-            ? $"{start}-次日 {end}"
+            ? $"{start}-次日\n{end}"
             : $"{start}-{end}";
     }
 
