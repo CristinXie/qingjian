@@ -4,7 +4,7 @@ using System.Windows.Interop;
 
 namespace QingJian.App.Hotkeys;
 
-public sealed class GlobalHotkeyService : IDisposable
+public sealed class GlobalHotkeyService : IGlobalHotkeyRegistrar, IDisposable
 {
     private const int WmHotkey = 0x0312;
     private HwndSource? _source;
@@ -15,6 +15,11 @@ public sealed class GlobalHotkeyService : IDisposable
 
     public bool Register(Window window, HotkeyDefinition hotkey)
     {
+        return Attach(window) && TryRegister(hotkey);
+    }
+
+    public bool Attach(Window window)
+    {
         _windowHandle = new WindowInteropHelper(window).Handle;
         if (_windowHandle == IntPtr.Zero)
         {
@@ -24,11 +29,18 @@ public sealed class GlobalHotkeyService : IDisposable
         _source = HwndSource.FromHwnd(_windowHandle);
         _source?.AddHook(WndProc);
 
+        return _source is not null;
+    }
+
+    public bool TryRegister(HotkeyDefinition hotkey)
+    {
+        if (_windowHandle == IntPtr.Zero || _source is null)
+        {
+            return false;
+        }
+
         if (!RegisterHotKey(_windowHandle, hotkey.Id, hotkey.Modifiers, hotkey.VirtualKey))
         {
-            _source?.RemoveHook(WndProc);
-            _source = null;
-            _windowHandle = IntPtr.Zero;
             return false;
         }
 
@@ -36,17 +48,23 @@ public sealed class GlobalHotkeyService : IDisposable
         return true;
     }
 
-    public void Dispose()
+    public void Unregister()
     {
         if (_windowHandle != IntPtr.Zero && _registeredId != 0)
         {
             UnregisterHotKey(_windowHandle, _registeredId);
         }
 
+        _registeredId = 0;
+    }
+
+    public void Dispose()
+    {
+        Unregister();
+
         _source?.RemoveHook(WndProc);
         _source = null;
         _windowHandle = IntPtr.Zero;
-        _registeredId = 0;
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
