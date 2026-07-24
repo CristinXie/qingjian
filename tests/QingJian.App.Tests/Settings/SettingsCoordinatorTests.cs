@@ -101,6 +101,26 @@ public sealed class SettingsCoordinatorTests : IDisposable
         Assert.Equal(AppSettings.DefaultEditorMode, context.LastAppliedEditorMode);
     }
 
+    [Fact]
+    public async Task SaveAsync_DisablingClearedHotkeyPreservesPreviousGesture()
+    {
+        var context = await CreateContextAsync();
+        var custom = new QuickNoteHotkeyPreferences(true, HotkeyDefinition.ModControl, 0x4A);
+        await context.SettingsService.UpdateAsync(settings => settings with { QuickNoteHotkey = custom });
+        Assert.True(context.HotkeyCoordinator.Apply(custom));
+        var request = CreateRequest() with
+        {
+            QuickNoteHotkey = new QuickNoteHotkeyPreferences(false, 0, 0)
+        };
+
+        var result = await context.Coordinator.SaveAsync(request);
+        var persisted = await context.SettingsService.LoadAsync();
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(custom with { IsEnabled = false }, persisted.QuickNoteHotkey);
+        Assert.Equal(custom with { IsEnabled = false }, context.HotkeyCoordinator.CurrentPreferences);
+    }
+
     private async Task<TestContext> CreateContextAsync(uint? rejectVirtualKey = null, string? failEditorMode = null)
     {
         Directory.CreateDirectory(_folder);

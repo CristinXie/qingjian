@@ -68,7 +68,12 @@ public sealed class SettingsCoordinator
         var oldHotkey = _hotkeyCoordinator.CurrentPreferences;
         var oldTodo = _todoWidgetCoordinator.CapturePreferences();
         var editorMode = new AppSettings(request.EditorMode).Normalize().EditorMode;
-        var hotkey = request.QuickNoteHotkey.Normalize();
+        var hotkey = !request.QuickNoteHotkey.IsEnabled &&
+            !QuickNoteHotkeyPreferences.IsValidGesture(
+                request.QuickNoteHotkey.Modifiers,
+                request.QuickNoteHotkey.VirtualKey)
+            ? oldSettings.QuickNoteHotkey.Normalize() with { IsEnabled = false }
+            : request.QuickNoteHotkey.Normalize();
         var todo = TodoWidgetPreferencesMerger.Merge(oldTodo, request.TodoWidget);
         var hotkeyTouched = false;
         var startupTouched = false;

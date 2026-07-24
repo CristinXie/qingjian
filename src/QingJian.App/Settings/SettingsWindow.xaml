@@ -335,6 +335,7 @@
                             Click="CancelButton_OnClick" />
                     <Button x:Name="SaveButton"
                             Content="保存"
+                            IsEnabled="False"
                             Style="{StaticResource PrimaryButtonStyle}"
                             Margin="8,0,0,0"
                             Click="SaveButton_OnClick" />

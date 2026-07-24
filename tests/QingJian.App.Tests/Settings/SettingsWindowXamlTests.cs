@@ -93,6 +93,7 @@ public sealed class SettingsWindowXamlTests
         Assert.Equal("{StaticResource SecondaryButtonStyle}", (string?)cancel.Attribute("Style"));
         Assert.Equal("{StaticResource PrimaryButtonStyle}", (string?)save.Attribute("Style"));
         Assert.Equal("8,0,0,0", (string?)save.Attribute("Margin"));
+        Assert.Equal("False", (string?)save.Attribute("IsEnabled"));
     }
 
     private static XElement FindNamedElement(XDocument xaml, string name)
