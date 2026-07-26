@@ -143,16 +143,16 @@ public partial class App : Application
             return;
         }
 
-        var folderViewModel = new FolderManagementViewModel(folderService);
-        folderViewModel.FolderRenamed += mainViewModel.ApplyFolderRename;
-        folderViewModel.FolderDeleted += mainViewModel.ApplyFolderDeletion;
-        _folderManagementWindow = new FolderManagementWindow(folderViewModel)
-        {
-            Owner = owner
-        };
-
         try
         {
+            var folderViewModel = new FolderManagementViewModel(folderService);
+            folderViewModel.FolderRenamed += mainViewModel.ApplyFolderRename;
+            folderViewModel.FolderDeleted += mainViewModel.ApplyFolderDeletion;
+            _folderManagementWindow = new FolderManagementWindow(folderViewModel)
+            {
+                Owner = owner
+            };
+
             var selected = _folderManagementWindow.ShowDialog() == true;
             await mainViewModel.RefreshFoldersAsync();
             if (!selected)
@@ -164,6 +164,15 @@ public partial class App : Application
                 _folderManagementWindow.SelectedAllNotes
                     ? null
                     : _folderManagementWindow.SelectedFolderName);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                owner,
+                $"打开文件夹管理失败。\n\n{ex.Message}",
+                "QingJian",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
         finally
         {

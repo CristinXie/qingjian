@@ -38,6 +38,19 @@ public sealed class FolderManagementWindowXamlTests
         Assert.Equal("0", (string?)FindAttributeByLocalName(allNotesButton, "ToolTipService.InitialShowDelay"));
     }
 
+    [Fact]
+    public void NewFolderEditorPanel_UsesCreatingStateTrigger()
+    {
+        var xaml = XDocument.Load(FindPath("FolderManagementWindow.xaml"));
+        var panel = FindNamedElement(xaml, "NewFolderEditorPanel");
+
+        Assert.Null(panel.Attribute("Visibility"));
+        Assert.Contains(
+            panel.Descendants().Where(element => element.Name.LocalName == "DataTrigger"),
+            trigger => (string?)FindAttributeByLocalName(trigger, "Binding") == "{Binding IsCreating}" &&
+                       (string?)FindAttributeByLocalName(trigger, "Value") == "True");
+    }
+
     private static XElement FindNamedElement(XDocument xaml, string name)
     {
         return xaml.Descendants().Single(element =>
