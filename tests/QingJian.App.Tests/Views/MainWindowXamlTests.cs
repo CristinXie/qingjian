@@ -196,7 +196,7 @@ public sealed class MainWindowXamlTests
         Assert.Equal("SettingsButton_OnClick", (string?)buttons[0].Attribute("Click"));
         Assert.Equal("FolderButton_OnClick", (string?)buttons[1].Attribute("Click"));
         Assert.Null(buttons[2].Attribute("Command"));
-        Assert.Null(buttons[2].Attribute("Click"));
+        Assert.Equal("BatchManagementButton_OnClick", (string?)buttons[2].Attribute("Click"));
         Assert.All(buttons, button =>
         {
             Assert.Equal("{StaticResource IconButtonStyle}", (string?)button.Attribute("Style"));
@@ -428,6 +428,13 @@ public sealed class MainWindowXamlTests
             && (string?)element.Attribute("Binding") == "{Binding IsBatchMode}"
             && (string?)element.Attribute("Value") == "True");
 
+        var actionRows = actionBar.Elements()
+            .Single(element => element.Name.LocalName == "Grid.RowDefinitions")
+            .Elements()
+            .Select(element => (string?)element.Attribute("Height"))
+            .ToArray();
+        Assert.Equal(new[] { "32", "40" }, actionRows);
+
         var buttons = buttonNames.Select((name, index) =>
         {
             var button = FindNamedElement(xaml, "Button", name);
@@ -465,6 +472,29 @@ public sealed class MainWindowXamlTests
                     setter.Name.LocalName == "Setter"
                     && (string?)setter.Attribute("Property") == "IsEnabled"
                     && (string?)setter.Attribute("Value") == "False"));
+        }
+    }
+
+    [Fact]
+    public void BatchActions_WireClickHandlersAndWindowKeyboardPreview()
+    {
+        var xaml = XDocument.Load(FindMainWindowXamlPath());
+        var window = xaml.Root ?? throw new InvalidOperationException("Main window root is missing.");
+        var expectedHandlers = new Dictionary<string, string>
+        {
+            ["BatchSelectAllButton"] = "BatchSelectAllButton_OnClick",
+            ["BatchClearSelectionButton"] = "BatchClearSelectionButton_OnClick",
+            ["BatchExitButton"] = "BatchExitButton_OnClick",
+            ["BatchMoveButton"] = "BatchMoveButton_OnClick",
+            ["BatchFavoriteButton"] = "BatchFavoriteButton_OnClick",
+            ["BatchUnfavoriteButton"] = "BatchUnfavoriteButton_OnClick",
+            ["BatchDeleteButton"] = "BatchDeleteButton_OnClick"
+        };
+
+        Assert.Equal("MainWindow_OnPreviewKeyDown", (string?)window.Attribute("PreviewKeyDown"));
+        foreach (var (name, handler) in expectedHandlers)
+        {
+            Assert.Equal(handler, (string?)FindNamedElement(xaml, "Button", name).Attribute("Click"));
         }
     }
 

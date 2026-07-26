@@ -86,6 +86,27 @@ public partial class MainWindow : Window
         FolderManagementRequested?.Invoke(this, EventArgs.Empty);
     }
 
+    private async void BatchManagementButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await PullLatestEditorMarkdownAsync();
+            await _viewModel.SaveSelectedNoteNowAsync();
+            _viewModel.EnterBatchMode();
+            NoteListBox.UnselectAll();
+            SynchronizeBatchSelection();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                this,
+                $"进入批量管理前无法保存当前便签。\n\n{ex.Message}",
+                "QingJian",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
     private async void ClearFolderFilterButton_OnClick(object sender, RoutedEventArgs e)
     {
         await ApplyFolderFilterAsync(null);
@@ -109,10 +130,45 @@ public partial class MainWindow : Window
 
     private void NoteListBox_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_viewModel.IsBatchMode)
+        {
+            SynchronizeBatchSelection();
+            return;
+        }
+
         if (e.AddedItems.OfType<Note>().FirstOrDefault() is { } note)
         {
             _viewModel.SelectedNote = note;
         }
+    }
+
+    private void SynchronizeBatchSelection()
+    {
+        _viewModel.SetBatchSelection(NoteListBox.SelectedItems.Cast<Note>());
+    }
+
+    private void BatchSelectAllButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        NoteListBox.SelectAll();
+        SynchronizeBatchSelection();
+    }
+
+    private void BatchClearSelectionButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        NoteListBox.UnselectAll();
+        SynchronizeBatchSelection();
+    }
+
+    private void BatchExitButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        ExitBatchMode();
+    }
+
+    private void ExitBatchMode()
+    {
+        NoteListBox.UnselectAll();
+        _viewModel.ExitBatchMode();
+        NoteListBox.SelectedItem = _viewModel.SelectedNote;
     }
 
     private async void FavoriteButton_OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -147,29 +203,65 @@ public partial class MainWindow : Window
             return;
         }
 
-        var menu = new ContextMenu
+        var menu = CreateFolderMoveMenu(
+            button,
+            new[] { note },
+            folderName => MoveNoteToFolderAsync(note, folderName),
+            () => CreateFolderAndMoveNoteAsync(note));
+        menu.IsOpen = true;
+    }
+
+    private void BatchMoveButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button)
         {
-            PlacementTarget = button
-        };
+            return;
+        }
+
+        var selectedNotes = NoteListBox.SelectedItems.Cast<Note>().ToArray();
+        if (selectedNotes.Length == 0)
+        {
+            return;
+        }
+
+        var menu = CreateFolderMoveMenu(
+            button,
+            selectedNotes,
+            MoveBatchSelectionToFolderAsync,
+            CreateFolderAndMoveBatchSelectionAsync);
+        menu.IsOpen = true;
+    }
+
+    private ContextMenu CreateFolderMoveMenu(
+        Button placementTarget,
+        IReadOnlyCollection<Note> notes,
+        Func<string, Task> moveAsync,
+        Func<Task> createAndMoveAsync)
+    {
+        var menu = new ContextMenu { PlacementTarget = placementTarget };
         foreach (var folder in _viewModel.Folders)
         {
+            var allInFolder = notes.All(note => string.Equals(
+                note.FolderName,
+                folder.Name,
+                StringComparison.OrdinalIgnoreCase));
             var menuItem = new MenuItem
             {
                 Header = folder.Name,
                 IsCheckable = true,
-                IsChecked = string.Equals(note.FolderName, folder.Name, StringComparison.OrdinalIgnoreCase),
-                IsEnabled = folder.IsValidMoveTarget,
+                IsChecked = allInFolder,
+                IsEnabled = folder.IsValidMoveTarget && !allInFolder,
                 Tag = folder.Name
             };
-            menuItem.Click += async (_, _) => await MoveNoteToFolderAsync(note, folder.Name);
+            menuItem.Click += async (_, _) => await moveAsync(folder.Name);
             menu.Items.Add(menuItem);
         }
 
         menu.Items.Add(new Separator());
         var createItem = new MenuItem { Header = "新建文件夹…" };
-        createItem.Click += async (_, _) => await CreateFolderAndMoveNoteAsync(note);
+        createItem.Click += async (_, _) => await createAndMoveAsync();
         menu.Items.Add(createItem);
-        menu.IsOpen = true;
+        return menu;
     }
 
     public async Task ApplyFolderFilterAsync(string? folderName)
@@ -194,6 +286,21 @@ public partial class MainWindow : Window
         await MoveNoteToFolderAsync(note, dialog.CreatedFolderName);
     }
 
+    private async Task CreateFolderAndMoveBatchSelectionAsync()
+    {
+        var dialog = new FolderNameDialog(_folderService)
+        {
+            Owner = this
+        };
+        if (dialog.ShowDialog() != true || dialog.CreatedFolderName is null)
+        {
+            return;
+        }
+
+        await _viewModel.RefreshFoldersAsync();
+        await MoveBatchSelectionToFolderAsync(dialog.CreatedFolderName);
+    }
+
     private async Task MoveNoteToFolderAsync(Note note, string folderName)
     {
         try
@@ -214,6 +321,122 @@ public partial class MainWindow : Window
                 "QingJian",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
+        }
+    }
+
+    private async Task MoveBatchSelectionToFolderAsync(string folderName)
+    {
+        try
+        {
+            await _viewModel.MoveBatchSelectionAsync(folderName);
+            NoteListBox.UnselectAll();
+            SynchronizeBatchSelection();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                this,
+                $"批量移动便签失败。\n\n{ex.Message}",
+                "QingJian",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private async void BatchFavoriteButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        await SetBatchFavoriteAsync(true);
+    }
+
+    private async void BatchUnfavoriteButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        await SetBatchFavoriteAsync(false);
+    }
+
+    private async Task SetBatchFavoriteAsync(bool isFavorite)
+    {
+        try
+        {
+            await _viewModel.SetBatchFavoriteAsync(isFavorite);
+            NoteListBox.UnselectAll();
+            SynchronizeBatchSelection();
+        }
+        catch (Exception ex)
+        {
+            var action = isFavorite ? "批量收藏失败。" : "批量取消收藏失败。";
+            MessageBox.Show(
+                this,
+                $"{action}\n\n{ex.Message}",
+                "QingJian",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private async void BatchDeleteButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        await DeleteBatchSelectionWithConfirmationAsync();
+    }
+
+    private async Task DeleteBatchSelectionWithConfirmationAsync()
+    {
+        var count = NoteListBox.SelectedItems.Count;
+        if (count == 0)
+        {
+            return;
+        }
+
+        var result = MessageBox.Show(
+            this,
+            BatchNoteDeletionConfirmation.BuildPrompt(count),
+            "批量删除便签",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (!BatchNoteDeletionConfirmation.IsConfirmed(result))
+        {
+            return;
+        }
+
+        try
+        {
+            await _viewModel.DeleteBatchSelectionAsync();
+            NoteListBox.UnselectAll();
+            SynchronizeBatchSelection();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                this,
+                $"批量删除便签失败。\n\n{ex.Message}",
+                "QingJian",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private async void MainWindow_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (!_viewModel.IsBatchMode)
+        {
+            return;
+        }
+
+        if (e.Key == Key.A && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            NoteListBox.SelectAll();
+            SynchronizeBatchSelection();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Delete)
+        {
+            e.Handled = true;
+            await DeleteBatchSelectionWithConfirmationAsync();
+        }
+        else if (e.Key == Key.Escape)
+        {
+            ExitBatchMode();
+            e.Handled = true;
         }
     }
 

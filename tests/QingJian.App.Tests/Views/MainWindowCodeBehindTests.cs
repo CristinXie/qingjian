@@ -41,6 +41,37 @@ public sealed class MainWindowCodeBehindTests
         Assert.Contains("await SetEditorModeAsync(_currentEditorMode)", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void MainWindow_WiresProtectedBatchManagementWorkflow()
+    {
+        var source = File.ReadAllText(FindMainWindowCodeBehindPath());
+
+        Assert.Contains("BatchManagementButton_OnClick", source, StringComparison.Ordinal);
+        Assert.Contains("await PullLatestEditorMarkdownAsync()", source, StringComparison.Ordinal);
+        Assert.Contains("await _viewModel.SaveSelectedNoteNowAsync()", source, StringComparison.Ordinal);
+        Assert.Contains("_viewModel.EnterBatchMode()", source, StringComparison.Ordinal);
+        Assert.Contains("_viewModel.ExitBatchMode()", source, StringComparison.Ordinal);
+        Assert.Contains("_viewModel.SetBatchSelection(NoteListBox.SelectedItems.Cast<Note>())", source, StringComparison.Ordinal);
+        Assert.Contains("BatchSelectAllButton_OnClick", source, StringComparison.Ordinal);
+        Assert.Contains("BatchClearSelectionButton_OnClick", source, StringComparison.Ordinal);
+        Assert.Contains("BatchMoveButton_OnClick", source, StringComparison.Ordinal);
+        Assert.Contains("BatchFavoriteButton_OnClick", source, StringComparison.Ordinal);
+        Assert.Contains("BatchUnfavoriteButton_OnClick", source, StringComparison.Ordinal);
+        Assert.Contains("BatchDeleteButton_OnClick", source, StringComparison.Ordinal);
+        Assert.Contains("BatchNoteDeletionConfirmation.BuildPrompt", source, StringComparison.Ordinal);
+        Assert.Contains("MessageBoxButton.YesNo", source, StringComparison.Ordinal);
+        Assert.Contains("MessageBoxResult.No", source, StringComparison.Ordinal);
+        Assert.Contains("进入批量管理前无法保存当前便签", source, StringComparison.Ordinal);
+        Assert.Contains("批量收藏失败", source, StringComparison.Ordinal);
+        Assert.Contains("批量取消收藏失败", source, StringComparison.Ordinal);
+        Assert.Contains("批量移动便签失败", source, StringComparison.Ordinal);
+        Assert.Contains("批量删除便签失败", source, StringComparison.Ordinal);
+        Assert.Contains("MainWindow_OnPreviewKeyDown", source, StringComparison.Ordinal);
+        Assert.Contains("Key.A", source, StringComparison.Ordinal);
+        Assert.Contains("Key.Delete", source, StringComparison.Ordinal);
+        Assert.Contains("Key.Escape", source, StringComparison.Ordinal);
+    }
+
     private static string FindMainWindowCodeBehindPath()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

@@ -9,7 +9,8 @@
         Height="680"
         MinWidth="760"
         MinHeight="480"
-        Background="{StaticResource AppBackgroundBrush}">
+        Background="{StaticResource AppBackgroundBrush}"
+        PreviewKeyDown="MainWindow_OnPreviewKeyDown">
     <Window.Resources>
         <views:NoteCreatedAtDisplayConverter x:Key="NoteCreatedAtDisplayConverter" />
         <views:NoteUpdatedAtDisplayConverter x:Key="NoteUpdatedAtDisplayConverter" />
@@ -208,7 +209,8 @@
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="批量管理"
                             ToolTipService.InitialShowDelay="0"
-                            IsEnabled="{Binding CanEnterBatchMode}" />
+                            IsEnabled="{Binding CanEnterBatchMode}"
+                            Click="BatchManagementButton_OnClick" />
                 </StackPanel>
 
                 <Grid x:Name="BatchActionBar"
@@ -226,7 +228,7 @@
                     </Grid.Style>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="32" />
-                        <RowDefinition Height="32" />
+                        <RowDefinition Height="40" />
                     </Grid.RowDefinitions>
 
                     <Grid Grid.Row="0">
@@ -247,7 +249,8 @@
                                 FontSize="14"
                                 Style="{StaticResource IconButtonStyle}"
                                 ToolTip="全选当前结果"
-                                ToolTipService.InitialShowDelay="0" />
+                                ToolTipService.InitialShowDelay="0"
+                                Click="BatchSelectAllButton_OnClick" />
                         <Button x:Name="BatchClearSelectionButton"
                                 Grid.Column="2"
                                 Content="&#xE894;"
@@ -256,7 +259,8 @@
                                 Margin="8,0,0,0"
                                 Style="{StaticResource IconButtonStyle}"
                                 ToolTip="清空选择"
-                                ToolTipService.InitialShowDelay="0" />
+                                ToolTipService.InitialShowDelay="0"
+                                Click="BatchClearSelectionButton_OnClick" />
                         <Button x:Name="BatchExitButton"
                                 Grid.Column="3"
                                 Content="&#xE711;"
@@ -265,7 +269,8 @@
                                 Margin="8,0,0,0"
                                 Style="{StaticResource IconButtonStyle}"
                                 ToolTip="退出批量管理"
-                                ToolTipService.InitialShowDelay="0" />
+                                ToolTipService.InitialShowDelay="0"
+                                Click="BatchExitButton_OnClick" />
                     </Grid>
 
                     <StackPanel Grid.Row="1"
@@ -278,7 +283,8 @@
                                 Style="{StaticResource IconButtonStyle}"
                                 ToolTip="移动到文件夹"
                                 ToolTipService.InitialShowDelay="0"
-                                IsEnabled="{Binding HasBatchSelection}" />
+                                IsEnabled="{Binding HasBatchSelection}"
+                                Click="BatchMoveButton_OnClick" />
                         <Button x:Name="BatchFavoriteButton"
                                 Content="&#xE734;"
                                 FontFamily="Segoe MDL2 Assets"
@@ -287,7 +293,8 @@
                                 Style="{StaticResource IconButtonStyle}"
                                 ToolTip="批量收藏"
                                 ToolTipService.InitialShowDelay="0"
-                                IsEnabled="{Binding CanBatchFavorite}" />
+                                IsEnabled="{Binding CanBatchFavorite}"
+                                Click="BatchFavoriteButton_OnClick" />
                         <Button x:Name="BatchUnfavoriteButton"
                                 Content="&#xE735;"
                                 FontFamily="Segoe MDL2 Assets"
@@ -296,7 +303,8 @@
                                 Style="{StaticResource IconButtonStyle}"
                                 ToolTip="批量取消收藏"
                                 ToolTipService.InitialShowDelay="0"
-                                IsEnabled="{Binding CanBatchUnfavorite}" />
+                                IsEnabled="{Binding CanBatchUnfavorite}"
+                                Click="BatchUnfavoriteButton_OnClick" />
                         <Button x:Name="BatchDeleteButton"
                                 Content="&#xE74D;"
                                 FontFamily="Segoe MDL2 Assets"
@@ -305,7 +313,8 @@
                                 Style="{StaticResource DangerIconButtonStyle}"
                                 ToolTip="批量删除"
                                 ToolTipService.InitialShowDelay="0"
-                                IsEnabled="{Binding HasBatchSelection}" />
+                                IsEnabled="{Binding HasBatchSelection}"
+                                Click="BatchDeleteButton_OnClick" />
                     </StackPanel>
                 </Grid>
 
