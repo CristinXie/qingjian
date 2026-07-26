@@ -12,6 +12,8 @@ public sealed class AppDbContext : DbContext
 
     public DbSet<Note> Notes => Set<Note>();
 
+    public DbSet<Folder> Folders => Set<Folder>();
+
     public DbSet<TodoItem> TodoItems => Set<TodoItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -58,6 +60,36 @@ public sealed class AppDbContext : DbContext
                 .HasColumnType("INTEGER")
                 .HasDefaultValue(false)
                 .IsRequired();
+        });
+
+        modelBuilder.Entity<Folder>(entity =>
+        {
+            entity.ToTable("Folders");
+            entity.HasKey(folder => folder.Id);
+
+            entity.Property(folder => folder.Id)
+                .HasColumnType("TEXT")
+                .IsRequired();
+
+            entity.Property(folder => folder.Name)
+                .HasColumnType("TEXT")
+                .IsRequired();
+
+            entity.Property(folder => folder.NormalizedName)
+                .HasColumnType("TEXT")
+                .IsRequired();
+
+            entity.Property(folder => folder.CreatedAt)
+                .HasColumnType("TEXT")
+                .IsRequired();
+
+            entity.Property(folder => folder.IsSystem)
+                .HasColumnType("INTEGER")
+                .HasDefaultValue(false)
+                .IsRequired();
+
+            entity.HasIndex(folder => folder.NormalizedName)
+                .IsUnique();
         });
 
         modelBuilder.Entity<TodoItem>(entity =>
