@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private readonly AppSettingsService _settingsService;
     private readonly AttachmentService _attachmentService;
     private readonly TodoWidgetCoordinator _todoWidgetCoordinator;
+    private readonly IFolderService _folderService;
     private readonly MarkdownEditorState _editorState = new();
     private bool _isEditorReady;
     private bool _isUpdatingTitlePlaceholder;
@@ -38,17 +39,21 @@ public partial class MainWindow : Window
 
     public event EventHandler? SettingsRequested;
 
+    public event EventHandler? FolderManagementRequested;
+
     public MainWindow(
         MainViewModel viewModel,
         AppSettingsService settingsService,
         AttachmentService attachmentService,
-        TodoWidgetCoordinator todoWidgetCoordinator)
+        TodoWidgetCoordinator todoWidgetCoordinator,
+        IFolderService folderService)
     {
         InitializeComponent();
         _viewModel = viewModel;
         _settingsService = settingsService;
         _attachmentService = attachmentService;
         _todoWidgetCoordinator = todoWidgetCoordinator;
+        _folderService = folderService;
         DataContext = _viewModel;
         _todoWidgetCoordinator.VisibilityChanged += OnTodoWidgetVisibilityChanged;
         UpdateTodoWidgetToggleLabel(_todoWidgetCoordinator.IsVisible);
@@ -74,6 +79,16 @@ public partial class MainWindow : Window
     private void SettingsButton_OnClick(object sender, RoutedEventArgs e)
     {
         SettingsRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void FolderButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        FolderManagementRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private async void ClearFolderFilterButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        await ApplyFolderFilterAsync(null);
     }
 
     private void OnTodoWidgetVisibilityChanged(object? sender, bool isVisible)
@@ -118,6 +133,84 @@ public partial class MainWindow : Window
             MessageBox.Show(
                 this,
                 $"收藏状态保存失败。\n\n{ex.Message}",
+                "QingJian",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private void FolderAssignmentButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not Button { DataContext: Note note } button)
+        {
+            return;
+        }
+
+        var menu = new ContextMenu
+        {
+            PlacementTarget = button
+        };
+        foreach (var folder in _viewModel.Folders)
+        {
+            var menuItem = new MenuItem
+            {
+                Header = folder.Name,
+                IsCheckable = true,
+                IsChecked = string.Equals(note.FolderName, folder.Name, StringComparison.OrdinalIgnoreCase),
+                IsEnabled = folder.IsValidMoveTarget,
+                Tag = folder.Name
+            };
+            menuItem.Click += async (_, _) => await MoveNoteToFolderAsync(note, folder.Name);
+            menu.Items.Add(menuItem);
+        }
+
+        menu.Items.Add(new Separator());
+        var createItem = new MenuItem { Header = "新建文件夹…" };
+        createItem.Click += async (_, _) => await CreateFolderAndMoveNoteAsync(note);
+        menu.Items.Add(createItem);
+        menu.IsOpen = true;
+    }
+
+    public async Task ApplyFolderFilterAsync(string? folderName)
+    {
+        await PullLatestEditorMarkdownAsync();
+        await _viewModel.SaveSelectedNoteNowAsync();
+        _viewModel.ApplyFolderFilter(folderName);
+    }
+
+    private async Task CreateFolderAndMoveNoteAsync(Note note)
+    {
+        var dialog = new FolderNameDialog(_folderService)
+        {
+            Owner = this
+        };
+        if (dialog.ShowDialog() != true || dialog.CreatedFolderName is null)
+        {
+            return;
+        }
+
+        await _viewModel.RefreshFoldersAsync();
+        await MoveNoteToFolderAsync(note, dialog.CreatedFolderName);
+    }
+
+    private async Task MoveNoteToFolderAsync(Note note, string folderName)
+    {
+        try
+        {
+            if (ReferenceEquals(_viewModel.SelectedNote, note))
+            {
+                await PullLatestEditorMarkdownAsync();
+                await _viewModel.SaveSelectedNoteNowAsync();
+            }
+
+            await _viewModel.MoveNoteAsync(note, folderName);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                this,
+                $"移动便签失败。\n\n{ex.Message}",
                 "QingJian",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);

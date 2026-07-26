@@ -110,6 +110,7 @@ public sealed class MainViewModel : ViewModelBase
         : "按时间";
 
     public bool ShowNoSearchResults => !IsEmpty
+        && !ShowFolderEmptyState
         && !string.IsNullOrWhiteSpace(SearchText)
         && NotesView.IsEmpty;
 

@@ -32,6 +32,11 @@ public sealed class MainWindowCodeBehindTests
         Assert.Contains("public event EventHandler? SettingsRequested", source, StringComparison.Ordinal);
         Assert.Contains("SettingsButton_OnClick", source, StringComparison.Ordinal);
         Assert.Contains("SettingsRequested?.Invoke", source, StringComparison.Ordinal);
+        Assert.Contains("FolderManagementRequested", source, StringComparison.Ordinal);
+        Assert.Contains("FolderButton_OnClick", source, StringComparison.Ordinal);
+        Assert.Contains("FolderAssignmentButton_OnClick", source, StringComparison.Ordinal);
+        Assert.Contains("FolderNameDialog", source, StringComparison.Ordinal);
+        Assert.Contains("ApplyFolderFilterAsync", source, StringComparison.Ordinal);
         Assert.Contains("public async Task ApplyEditorModePreferenceAsync", source, StringComparison.Ordinal);
         Assert.Contains("await SetEditorModeAsync(_currentEditorMode)", source, StringComparison.Ordinal);
     }

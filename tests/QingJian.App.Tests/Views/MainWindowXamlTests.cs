@@ -29,6 +29,34 @@ public sealed class MainWindowXamlTests
     }
 
     [Fact]
+    public void FolderButton_RaisesFolderManagementRequest()
+    {
+        var xaml = XDocument.Load(FindMainWindowXamlPath());
+        var folderButton = FindNamedElement(xaml, "Button", "FolderButton");
+
+        Assert.Equal("FolderButton_OnClick", (string?)folderButton.Attribute("Click"));
+        Assert.Equal("文件夹", (string?)folderButton.Attribute("ToolTip"));
+    }
+
+    [Fact]
+    public void Sidebar_ContainsActiveFolderFilterAndSeparateEmptyState()
+    {
+        var xaml = XDocument.Load(FindMainWindowXamlPath());
+        var filterPanel = FindNamedElement(xaml, "StackPanel", "ActiveFolderFilterPanel");
+        var clearButton = FindNamedElement(xaml, "Button", "ClearFolderFilterButton");
+        var emptyText = FindNamedElement(xaml, "TextBlock", "FolderEmptyTextBlock");
+
+        Assert.Contains(filterPanel.Descendants(), element =>
+            ((string?)element.Attribute("Text"))?.Contains("CurrentFolderDisplayName", StringComparison.Ordinal) == true);
+        Assert.Equal("显示全部便签", (string?)clearButton.Attribute("ToolTip"));
+        Assert.Equal("没有便签", (string?)emptyText.Attribute("Text"));
+        Assert.Contains(emptyText.Descendants(), element =>
+            element.Name.LocalName == "DataTrigger"
+            && (string?)element.Attribute("Binding") == "{Binding ShowFolderEmptyState}"
+            && (string?)element.Attribute("Value") == "True");
+    }
+
+    [Fact]
     public void Sidebar_SearchAndSortControlsShareTheRowBelowTodoAction()
     {
         var xaml = XDocument.Load(FindMainWindowXamlPath());
@@ -87,6 +115,11 @@ public sealed class MainWindowXamlTests
         Assert.Contains(xaml.Descendants(), element =>
             element.Name.LocalName == "TextBlock"
             && (string?)element.Attribute("Text") == "{Binding FolderName}");
+
+        var folderButton = FindNamedElement(xaml, "Button", "FolderAssignmentButton");
+        Assert.Equal("FolderAssignmentButton_OnClick", (string?)folderButton.Attribute("Click"));
+        Assert.Equal("移动到文件夹", (string?)folderButton.Attribute("ToolTip"));
+        Assert.Equal("0", (string?)FindAttributeByLocalName(folderButton, "ToolTipService.InitialShowDelay"));
     }
 
     [Fact]
@@ -108,7 +141,8 @@ public sealed class MainWindowXamlTests
             element.Name.LocalName == "TextBlock"
             && ((string?)element.Attribute("Text"))?.Contains("NoteUpdatedAtDisplayConverter", StringComparison.Ordinal) == true);
         var folderRow = xaml.Descendants().Single(element =>
-            element.Name.LocalName == "StackPanel"
+            element.Name.LocalName == "Button"
+            && (string?)FindAttributeByLocalName(element, "Name") == "FolderAssignmentButton"
             && element.Descendants().Any(child =>
                 child.Name.LocalName == "TextBlock"
                 && (string?)child.Attribute("Text") == "{Binding FolderName}"));
@@ -125,8 +159,8 @@ public sealed class MainWindowXamlTests
         Assert.Equal("24", (string?)favoriteButton.Attribute("Height"));
         Assert.Null(updatedTime.Attribute("Margin"));
         Assert.Equal("Center", (string?)updatedTime.Attribute("VerticalAlignment"));
-        Assert.Null(folderRow.Attribute("Margin"));
-        Assert.Equal("Center", (string?)folderRow.Attribute("VerticalAlignment"));
+        Assert.Equal("Transparent", (string?)folderRow.Attribute("BorderBrush"));
+        Assert.Equal("Center", (string?)folderRow.Attribute("VerticalContentAlignment"));
     }
 
     [Fact]
@@ -157,11 +191,9 @@ public sealed class MainWindowXamlTests
 
         Assert.Equal(expected, buttons.Select(button => (string?)FindAttributeByLocalName(button, "Name")));
         Assert.Equal("SettingsButton_OnClick", (string?)buttons[0].Attribute("Click"));
-        Assert.All(buttons.Skip(1), button =>
-        {
-            Assert.Null(button.Attribute("Command"));
-            Assert.Null(button.Attribute("Click"));
-        });
+        Assert.Equal("FolderButton_OnClick", (string?)buttons[1].Attribute("Click"));
+        Assert.Null(buttons[2].Attribute("Command"));
+        Assert.Null(buttons[2].Attribute("Click"));
         Assert.All(buttons, button =>
         {
             Assert.Equal("{StaticResource IconButtonStyle}", (string?)button.Attribute("Style"));

@@ -14,7 +14,7 @@ public sealed class AppStartupWiringTests
         Assert.Contains("var todoService = new TodoService(todoRepository);", source, StringComparison.Ordinal);
         Assert.Contains("_todoWidgetCoordinator = new TodoWidgetCoordinator(", source, StringComparison.Ordinal);
         Assert.Contains("await _todoWidgetCoordinator.InitializeAsync();", source, StringComparison.Ordinal);
-        Assert.Contains("new MainWindow(viewModel, settingsService, attachmentService, _todoWidgetCoordinator)", source, StringComparison.Ordinal);
+        Assert.Contains("new MainWindow(viewModel, settingsService, attachmentService, _todoWidgetCoordinator, folderService)", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -43,6 +43,20 @@ public sealed class AppStartupWiringTests
         Assert.Contains("_settingsWindow.Activate()", source, StringComparison.Ordinal);
         Assert.Contains("new SettingsWindow(settingsCoordinator)", source, StringComparison.Ordinal);
         Assert.Contains("Environment.ProcessPath", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Startup_WiresFolderRepositoryServiceAndManagerWindow()
+    {
+        var source = File.ReadAllText(FindAppSourcePath());
+
+        Assert.Contains("var folderRepository = new FolderRepository(dbContext);", source, StringComparison.Ordinal);
+        Assert.Contains("var folderService = new FolderService(folderRepository);", source, StringComparison.Ordinal);
+        Assert.Contains("new NoteService(noteRepository, folderService)", source, StringComparison.Ordinal);
+        Assert.Contains("new MainViewModel(noteService, folderService)", source, StringComparison.Ordinal);
+        Assert.Contains("_folderManagementWindow", source, StringComparison.Ordinal);
+        Assert.Contains("new FolderManagementWindow", source, StringComparison.Ordinal);
+        Assert.Contains("FolderManagementRequested", source, StringComparison.Ordinal);
     }
 
     private static string FindAppSourcePath()

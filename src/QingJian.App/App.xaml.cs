@@ -17,6 +17,7 @@ public partial class App : Application
     private GlobalHotkeyService? _hotkeyService;
     private TodoWidgetCoordinator? _todoWidgetCoordinator;
     private SettingsWindow? _settingsWindow;
+    private FolderManagementWindow? _folderManagementWindow;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -33,11 +34,13 @@ public partial class App : Application
             .Options;
 
         var dbContext = new AppDbContext(options);
-        var repository = new NoteRepository(dbContext);
-        var service = new NoteService(repository);
+        var noteRepository = new NoteRepository(dbContext);
+        var folderRepository = new FolderRepository(dbContext);
+        var folderService = new FolderService(folderRepository);
+        var noteService = new NoteService(noteRepository, folderService);
         var todoRepository = new TodoRepository(dbContext);
         var todoService = new TodoService(todoRepository);
-        var viewModel = new MainViewModel(service);
+        var viewModel = new MainViewModel(noteService, folderService);
         var settingsService = new AppSettingsService(appDataFolder);
         var initialSettings = await settingsService.LoadAsync();
         var attachmentService = new AttachmentService(Path.Combine(appDataFolder, "attachments"));
@@ -46,10 +49,10 @@ public partial class App : Application
             settingsService,
             new WindowZOrderService());
 
-        var window = new MainWindow(viewModel, settingsService, attachmentService, _todoWidgetCoordinator);
+        var window = new MainWindow(viewModel, settingsService, attachmentService, _todoWidgetCoordinator, folderService);
         MainWindow = window;
         var coordinator = new QuickNoteCoordinator(
-            service,
+            noteService,
             viewModel,
             new QuickNoteWindowFactory(),
             () => window.IsVisible && window.WindowState != WindowState.Minimized);
@@ -72,6 +75,8 @@ public partial class App : Application
             window.ApplyEditorModePreferenceAsync);
 
         window.SettingsRequested += (_, _) => ShowSettingsWindow(window, settingsCoordinator);
+        window.FolderManagementRequested += async (_, _) =>
+            await ShowFolderManagementWindowAsync(window, viewModel, folderService);
 
         window.SourceInitialized += (_, _) =>
         {
@@ -124,6 +129,45 @@ public partial class App : Application
         finally
         {
             _settingsWindow = null;
+        }
+    }
+
+    private async Task ShowFolderManagementWindowAsync(
+        MainWindow owner,
+        MainViewModel mainViewModel,
+        IFolderService folderService)
+    {
+        if (_folderManagementWindow is { IsVisible: true })
+        {
+            _folderManagementWindow.Activate();
+            return;
+        }
+
+        var folderViewModel = new FolderManagementViewModel(folderService);
+        folderViewModel.FolderRenamed += mainViewModel.ApplyFolderRename;
+        folderViewModel.FolderDeleted += mainViewModel.ApplyFolderDeletion;
+        _folderManagementWindow = new FolderManagementWindow(folderViewModel)
+        {
+            Owner = owner
+        };
+
+        try
+        {
+            var selected = _folderManagementWindow.ShowDialog() == true;
+            await mainViewModel.RefreshFoldersAsync();
+            if (!selected)
+            {
+                return;
+            }
+
+            await owner.ApplyFolderFilterAsync(
+                _folderManagementWindow.SelectedAllNotes
+                    ? null
+                    : _folderManagementWindow.SelectedFolderName);
+        }
+        finally
+        {
+            _folderManagementWindow = null;
         }
     }
 
