@@ -191,11 +191,36 @@ public sealed class NoteServiceTests
             return Task.CompletedTask;
         }
 
+        public Task SetFavoritesAsync(
+            IReadOnlyCollection<string> noteIds,
+            bool isFavorite,
+            DateTime? favoritedAt,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task MoveToFolderAsync(
+            IReadOnlyCollection<string> noteIds,
+            string folderName,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
         public Task SoftDeleteAsync(string noteId, DateTime deletedAt, CancellationToken cancellationToken = default)
         {
             var note = Notes.Single(item => item.Id == noteId);
             note.IsDeleted = true;
             note.UpdatedAt = deletedAt;
+            return Task.CompletedTask;
+        }
+
+        public Task SoftDeleteAsync(
+            IReadOnlyCollection<string> noteIds,
+            DateTime deletedAt,
+            CancellationToken cancellationToken = default)
+        {
             return Task.CompletedTask;
         }
     }

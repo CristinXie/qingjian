@@ -110,13 +110,103 @@ public sealed class NoteRepositoryTests
         Assert.Equal(updatedAt, loaded.UpdatedAt);
     }
 
+    [Fact]
+    public async Task SetFavoritesAsync_UpdatesDistinctMatchesWithoutChangingOtherFields()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var repository = CreateRepository(connection);
+        await repository.InitializeAsync();
+        var updatedAt = new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc);
+        var favoritedAt = new DateTime(2026, 7, 20, 9, 0, 0, DateTimeKind.Utc);
+        var first = CreateNote("first", "First", updatedAt, false);
+        first.Content = "First body";
+        first.FolderName = "项目";
+        var second = CreateNote("second", "Second", updatedAt.AddMinutes(1), false);
+        var untouched = CreateNote("untouched", "Untouched", updatedAt.AddMinutes(2), false);
+        await repository.AddAsync(first);
+        await repository.AddAsync(second);
+        await repository.AddAsync(untouched);
+
+        await repository.SetFavoritesAsync(
+            new[] { "first", "first", "second", "missing" },
+            true,
+            favoritedAt);
+
+        await using var context = CreateContext(connection);
+        var loaded = await context.Notes.OrderBy(note => note.Id).ToArrayAsync();
+        Assert.True(loaded.Single(note => note.Id == "first").IsFavorite);
+        Assert.Equal(favoritedAt, loaded.Single(note => note.Id == "first").FavoritedAt);
+        Assert.Equal(updatedAt, loaded.Single(note => note.Id == "first").UpdatedAt);
+        Assert.Equal("First body", loaded.Single(note => note.Id == "first").Content);
+        Assert.Equal("项目", loaded.Single(note => note.Id == "first").FolderName);
+        Assert.True(loaded.Single(note => note.Id == "second").IsFavorite);
+        Assert.False(loaded.Single(note => note.Id == "untouched").IsFavorite);
+    }
+
+    [Fact]
+    public async Task MoveToFolderAsync_UpdatesDistinctMatchesWithoutChangingUpdatedAt()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var repository = CreateRepository(connection);
+        await repository.InitializeAsync();
+        var updatedAt = new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc);
+        await repository.AddAsync(CreateNote("first", "First", updatedAt, false));
+        await repository.AddAsync(CreateNote("second", "Second", updatedAt.AddMinutes(1), false));
+
+        await repository.MoveToFolderAsync(new[] { "first", "first", "missing" }, "工作");
+
+        await using var context = CreateContext(connection);
+        var first = await context.Notes.SingleAsync(note => note.Id == "first");
+        var second = await context.Notes.SingleAsync(note => note.Id == "second");
+        Assert.Equal("工作", first.FolderName);
+        Assert.Equal(updatedAt, first.UpdatedAt);
+        Assert.Equal("未分类", second.FolderName);
+    }
+
+    [Fact]
+    public async Task BatchSoftDeleteAsync_UsesOneTimestampAndEmptyCollectionsAreNoOps()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var repository = CreateRepository(connection);
+        await repository.InitializeAsync();
+        var updatedAt = new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc);
+        var deletedAt = updatedAt.AddHours(1);
+        await repository.AddAsync(CreateNote("first", "First", updatedAt, false));
+        await repository.AddAsync(CreateNote("second", "Second", updatedAt.AddMinutes(1), false));
+        await repository.AddAsync(CreateNote("untouched", "Untouched", updatedAt.AddMinutes(2), false));
+
+        await repository.SoftDeleteAsync(new[] { "first", "first", "second", "missing" }, deletedAt);
+        await repository.SetFavoritesAsync(Array.Empty<string>(), true, deletedAt);
+        await repository.MoveToFolderAsync(Array.Empty<string>(), "工作");
+        await repository.SoftDeleteAsync(Array.Empty<string>(), deletedAt.AddHours(1));
+
+        await using var context = CreateContext(connection);
+        var loaded = await context.Notes.OrderBy(note => note.Id).ToArrayAsync();
+        Assert.All(loaded.Where(note => note.Id is "first" or "second"), note =>
+        {
+            Assert.True(note.IsDeleted);
+            Assert.Equal(deletedAt, note.UpdatedAt);
+        });
+        var untouched = loaded.Single(note => note.Id == "untouched");
+        Assert.False(untouched.IsDeleted);
+        Assert.Equal(updatedAt.AddMinutes(2), untouched.UpdatedAt);
+    }
+
     private static NoteRepository CreateRepository(SqliteConnection connection)
+    {
+        return new NoteRepository(CreateContext(connection));
+    }
+
+    private static AppDbContext CreateContext(SqliteConnection connection)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite(connection)
             .Options;
 
-        return new NoteRepository(new AppDbContext(options));
+        return new AppDbContext(options);
     }
 
     private static Note CreateNote(string id, string title, DateTime updatedAt, bool isDeleted)

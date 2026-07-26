@@ -92,6 +92,42 @@ public sealed class NoteRepository : INoteRepository
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task SetFavoritesAsync(
+        IReadOnlyCollection<string> noteIds,
+        bool isFavorite,
+        DateTime? favoritedAt,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = NormalizeIds(noteIds);
+        if (ids.Length == 0)
+        {
+            return;
+        }
+
+        await _dbContext.Notes
+            .Where(note => ids.Contains(note.Id))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(note => note.IsFavorite, isFavorite)
+                .SetProperty(note => note.FavoritedAt, favoritedAt), cancellationToken);
+    }
+
+    public async Task MoveToFolderAsync(
+        IReadOnlyCollection<string> noteIds,
+        string folderName,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = NormalizeIds(noteIds);
+        if (ids.Length == 0)
+        {
+            return;
+        }
+
+        await _dbContext.Notes
+            .Where(note => ids.Contains(note.Id))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(note => note.FolderName, folderName), cancellationToken);
+    }
+
     public async Task SoftDeleteAsync(string noteId, DateTime deletedAt, CancellationToken cancellationToken = default)
     {
         var existing = await _dbContext.Notes
@@ -101,6 +137,32 @@ public sealed class NoteRepository : INoteRepository
         existing.UpdatedAt = deletedAt;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task SoftDeleteAsync(
+        IReadOnlyCollection<string> noteIds,
+        DateTime deletedAt,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = NormalizeIds(noteIds);
+        if (ids.Length == 0)
+        {
+            return;
+        }
+
+        await _dbContext.Notes
+            .Where(note => ids.Contains(note.Id))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(note => note.IsDeleted, true)
+                .SetProperty(note => note.UpdatedAt, deletedAt), cancellationToken);
+    }
+
+    private static string[] NormalizeIds(IReadOnlyCollection<string> noteIds)
+    {
+        return noteIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
     }
 
     private async Task<HashSet<string>> GetNoteColumnNamesAsync(CancellationToken cancellationToken)
