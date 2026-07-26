@@ -86,6 +86,39 @@ public sealed class NoteServiceTests
         Assert.Equal(updatedAt, note.UpdatedAt);
     }
 
+    [Fact]
+    public async Task CreateAndMoveNoteAsync_PersistsFolderWithoutChangingUpdatedAt()
+    {
+        var repository = new InMemoryNoteRepository();
+        var folderService = new FakeFolderService("项目", "工作");
+        var updatedAt = new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc);
+        var service = new NoteService(repository, folderService, () => updatedAt);
+
+        var note = await service.CreateNoteInFolderAsync("项目");
+        await service.MoveNoteAsync(note, "工作");
+
+        Assert.Equal("工作", note.FolderName);
+        Assert.Equal(updatedAt, note.UpdatedAt);
+        Assert.Single(repository.FolderUpdates);
+    }
+
+    [Fact]
+    public async Task MoveNoteAsync_RestoresFolderWhenPersistenceFails()
+    {
+        var repository = new InMemoryNoteRepository
+        {
+            FolderUpdateException = new InvalidOperationException("boom")
+        };
+        var note = CreateNote(new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc));
+        var folderService = new FakeFolderService("项目", "工作");
+        var service = new NoteService(repository, folderService, () => note.UpdatedAt);
+        repository.Notes.Add(note);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.MoveNoteAsync(note, "工作"));
+
+        Assert.Equal("未分类", note.FolderName);
+    }
+
     private static Note CreateNote(DateTime updatedAt)
     {
         return new Note
@@ -108,7 +141,11 @@ public sealed class NoteServiceTests
 
         public List<Note> FavoriteUpdates { get; } = new();
 
+        public List<Note> FolderUpdates { get; } = new();
+
         public Exception? FavoriteUpdateException { get; init; }
+
+        public Exception? FolderUpdateException { get; init; }
 
         public Task InitializeAsync(CancellationToken cancellationToken = default)
         {
@@ -143,6 +180,17 @@ public sealed class NoteServiceTests
             return Task.CompletedTask;
         }
 
+        public Task UpdateFolderAsync(Note note, CancellationToken cancellationToken = default)
+        {
+            if (FolderUpdateException is not null)
+            {
+                throw FolderUpdateException;
+            }
+
+            FolderUpdates.Add(note);
+            return Task.CompletedTask;
+        }
+
         public Task SoftDeleteAsync(string noteId, DateTime deletedAt, CancellationToken cancellationToken = default)
         {
             var note = Notes.Single(item => item.Id == noteId);
@@ -150,5 +198,33 @@ public sealed class NoteServiceTests
             note.UpdatedAt = deletedAt;
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class FakeFolderService : IFolderService
+    {
+        private readonly HashSet<string> _folderNames = new(StringComparer.OrdinalIgnoreCase);
+
+        public FakeFolderService(params string[] folderNames)
+        {
+            _folderNames.UnionWith(folderNames);
+            _folderNames.Add(FolderNamePolicy.UncategorizedName);
+        }
+
+        public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<IReadOnlyList<FolderSummary>> GetFoldersAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<FolderSummary>>(Array.Empty<FolderSummary>());
+
+        public Task<FolderSummary> CreateAsync(string name, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<FolderSummary> RenameAsync(FolderSummary folder, string newName, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task DeleteAsync(FolderSummary folder, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<bool> IsValidMoveTargetAsync(string folderName, CancellationToken cancellationToken = default)
+            => Task.FromResult(_folderNames.Contains(folderName));
     }
 }

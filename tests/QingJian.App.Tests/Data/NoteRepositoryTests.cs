@@ -91,6 +91,25 @@ public sealed class NoteRepositoryTests
         Assert.Equal(updatedAt, loaded.UpdatedAt);
     }
 
+    [Fact]
+    public async Task UpdateFolderAsync_PersistsFolderWithoutChangingUpdatedAt()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var repository = CreateRepository(connection);
+        await repository.InitializeAsync();
+        var updatedAt = new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc);
+        var note = CreateNote("note-1", "Title", updatedAt, false);
+        await repository.AddAsync(note);
+
+        note.FolderName = "项目";
+        await repository.UpdateFolderAsync(note);
+
+        var loaded = Assert.Single(await repository.GetActiveNotesAsync());
+        Assert.Equal("项目", loaded.FolderName);
+        Assert.Equal(updatedAt, loaded.UpdatedAt);
+    }
+
     private static NoteRepository CreateRepository(SqliteConnection connection)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

@@ -226,6 +226,13 @@ public sealed class QuickNoteCoordinatorTests
             return Task.FromResult(note);
         }
 
+        public async Task<Note> CreateNoteInFolderAsync(string folderName, CancellationToken cancellationToken = default)
+        {
+            var note = await CreateNoteAsync(cancellationToken);
+            note.FolderName = folderName;
+            return note;
+        }
+
         public Task SaveNoteAsync(Note note, CancellationToken cancellationToken = default)
         {
             SaveCallCount++;
@@ -248,6 +255,12 @@ public sealed class QuickNoteCoordinatorTests
         {
             note.IsFavorite = isFavorite;
             note.FavoritedAt = isFavorite ? DateTime.UtcNow : null;
+            return Task.CompletedTask;
+        }
+
+        public Task MoveNoteAsync(Note note, string folderName, CancellationToken cancellationToken = default)
+        {
+            note.FolderName = folderName;
             return Task.CompletedTask;
         }
 

@@ -10,9 +10,13 @@ public interface INoteService
 
     Task<Note> CreateNoteAsync(CancellationToken cancellationToken = default);
 
+    Task<Note> CreateNoteInFolderAsync(string folderName, CancellationToken cancellationToken = default);
+
     Task SaveNoteAsync(Note note, CancellationToken cancellationToken = default);
 
     Task SetFavoriteAsync(Note note, bool isFavorite, CancellationToken cancellationToken = default);
+
+    Task MoveNoteAsync(Note note, string folderName, CancellationToken cancellationToken = default);
 
     Task DeleteNoteAsync(Note note, CancellationToken cancellationToken = default);
 }

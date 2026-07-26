@@ -264,12 +264,14 @@ public sealed class MainViewModel : ViewModelBase
 
     private void OnSelectedNotePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (_isLoadingSelection || e.PropertyName is not (nameof(Note.Title) or nameof(Note.Content)))
+        if (_isLoadingSelection
+            || sender is not Note note
+            || e.PropertyName is not (nameof(Note.Title) or nameof(Note.Content)))
         {
             return;
         }
 
-        ScheduleAutoSave();
+        ScheduleAutoSave(note);
     }
 
     private bool FilterNote(object item)
@@ -295,36 +297,45 @@ public sealed class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(SelectedNote));
     }
 
-    private void ScheduleAutoSave()
+    private void ScheduleAutoSave(Note note)
     {
         _autoSaveCancellation?.Cancel();
         var cancellation = new CancellationTokenSource();
         _autoSaveCancellation = cancellation;
 
-        _ = SaveAfterDelayAsync(cancellation.Token);
+        _ = SaveAfterDelayAsync(note, cancellation.Token);
     }
 
-    private async Task SaveAfterDelayAsync(CancellationToken cancellationToken)
+    private async Task SaveAfterDelayAsync(Note note, CancellationToken cancellationToken)
     {
         try
         {
             await Task.Delay(_autoSaveDelay, cancellationToken);
-            await SaveSelectedNoteAsync(cancellationToken);
+            await SaveNoteAsync(note, cancellationToken);
         }
         catch (OperationCanceledException)
         {
         }
     }
 
-    private async Task SaveSelectedNoteAsync(CancellationToken cancellationToken)
+    private Task SaveSelectedNoteAsync(CancellationToken cancellationToken)
     {
         if (SelectedNote is null)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        await _noteService.SaveNoteAsync(SelectedNote, cancellationToken);
-        MoveSelectedNoteToTop();
+        return SaveNoteAsync(SelectedNote, cancellationToken);
+    }
+
+    private async Task SaveNoteAsync(Note note, CancellationToken cancellationToken)
+    {
+        await _noteService.SaveNoteAsync(note, cancellationToken);
+        if (ReferenceEquals(SelectedNote, note))
+        {
+            MoveSelectedNoteToTop();
+        }
+
         RefreshNoteNavigation();
     }
 

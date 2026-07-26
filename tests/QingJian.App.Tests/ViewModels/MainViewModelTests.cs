@@ -317,6 +317,25 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task EditingOneNoteThenSelectingAnother_AutoSavesTheEditedNote()
+    {
+        var first = CreateNote("first", "First");
+        var second = CreateNote("second", "Second");
+        var service = new InMemoryNoteService(first, second);
+        var viewModel = new MainViewModel(service, TimeSpan.FromMilliseconds(10));
+        await viewModel.LoadAsync();
+
+        viewModel.SelectedNote = first;
+        first.Content = "Changed";
+        viewModel.SelectedNote = second;
+
+        await WaitUntilAsync(() => service.SavedIds.Contains("first"));
+
+        Assert.Contains("first", service.SavedIds);
+        Assert.DoesNotContain("second", service.SavedIds);
+    }
+
+    [Fact]
     public void AddSavedNote_InsertsNoteAtTopAndSelectsWhenRequested()
     {
         var existing = CreateNote("existing", "Existing");
@@ -434,6 +453,14 @@ public sealed class MainViewModelTests
             return Task.FromResult(note);
         }
 
+        public Task<Note> CreateNoteInFolderAsync(string folderName, CancellationToken cancellationToken = default)
+        {
+            var note = CreateNote($"note-{_notes.Count + 1}", NoteService.DefaultTitle);
+            note.FolderName = folderName;
+            _notes.Insert(0, note);
+            return Task.FromResult(note);
+        }
+
         public Task SaveNoteAsync(Note note, CancellationToken cancellationToken = default)
         {
             SavedIds.Add(note.Id);
@@ -454,6 +481,12 @@ public sealed class MainViewModelTests
 
             note.IsFavorite = isFavorite;
             note.FavoritedAt = isFavorite ? FavoriteUpdatedAt ?? DateTime.UtcNow : null;
+            return Task.CompletedTask;
+        }
+
+        public Task MoveNoteAsync(Note note, string folderName, CancellationToken cancellationToken = default)
+        {
+            note.FolderName = folderName;
             return Task.CompletedTask;
         }
 
