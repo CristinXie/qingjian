@@ -334,7 +334,6 @@
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsBatchMode}" Value="True">
                                         <Setter Property="SelectionMode" Value="Multiple" />
-                                        <Setter Property="SelectedItem" Value="{x:Null}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>

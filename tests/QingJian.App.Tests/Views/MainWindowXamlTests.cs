@@ -383,6 +383,13 @@ public sealed class MainWindowXamlTests
                 setter.Name.LocalName == "Setter"
                 && (string?)setter.Attribute("Property") == "SelectionMode"
                 && (string?)setter.Attribute("Value") == "Multiple"));
+        Assert.DoesNotContain(listBox.Descendants(), element =>
+            element.Name.LocalName == "DataTrigger"
+            && (string?)element.Attribute("Binding") == "{Binding IsBatchMode}"
+            && (string?)element.Attribute("Value") == "True"
+            && element.Descendants().Any(setter =>
+                setter.Name.LocalName == "Setter"
+                && (string?)setter.Attribute("Property") == "SelectedItem"));
         Assert.Contains("IsSelected", (string?)checkbox.Attribute("IsChecked"));
         Assert.Contains(checkbox.Descendants(), element =>
             element.Name.LocalName == "DataTrigger"
