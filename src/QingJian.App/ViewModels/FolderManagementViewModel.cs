@@ -65,7 +65,18 @@ public sealed class FolderManagementViewModel : ViewModelBase
     public string EditorText
     {
         get => _editorText;
-        set => SetField(ref _editorText, value ?? string.Empty);
+        set
+        {
+            if (!SetField(ref _editorText, value ?? string.Empty))
+            {
+                return;
+            }
+
+            if (_editingItem is not null && _editingItem.EditText != _editorText)
+            {
+                _editingItem.EditText = _editorText;
+            }
+        }
     }
 
     public string ErrorMessage
