@@ -510,6 +510,118 @@ public sealed class MainViewModelTests
         Assert.Same(added, viewModel.SelectedNote);
     }
 
+    [Fact]
+    public async Task EnterBatchMode_CapturesVisibleScopeAndHidesLaterQuickNotes()
+    {
+        var titleMatch = CreateNote("title", "Alpha title");
+        var bodyMatch = CreateNote("body", "Other");
+        bodyMatch.Content = "alpha body";
+        var hidden = CreateNote("hidden", "Hidden");
+        var viewModel = new MainViewModel(new InMemoryNoteService(titleMatch, bodyMatch, hidden));
+        await viewModel.LoadAsync();
+        viewModel.SearchText = "alpha";
+
+        viewModel.EnterBatchMode();
+        var quickNote = CreateNote("quick", "Alpha quick");
+        viewModel.AddSavedNote(quickNote, select: false);
+
+        Assert.True(viewModel.IsBatchMode);
+        Assert.Equal(new HashSet<string> { "title", "body" }, viewModel.BatchScopeIds);
+        Assert.Equal(new[] { "title", "body" }, viewModel.NotesView.Cast<Note>().Select(note => note.Id));
+        Assert.DoesNotContain(quickNote, viewModel.NotesView.Cast<Note>());
+
+        viewModel.ExitBatchMode();
+        Assert.Contains(quickNote, viewModel.NotesView.Cast<Note>());
+    }
+
+    [Fact]
+    public async Task SetBatchFavoriteAsync_UpdatesSelectionStateAndClearsSelectionOnSuccess()
+    {
+        var favorite = CreateNote("favorite", "Favorite");
+        favorite.IsFavorite = true;
+        favorite.FavoritedAt = DateTime.UtcNow.AddMinutes(-1);
+        var normal = CreateNote("normal", "Normal");
+        var service = new InMemoryNoteService(favorite, normal);
+        var viewModel = new MainViewModel(service);
+        await viewModel.LoadAsync();
+        viewModel.EnterBatchMode();
+        viewModel.SetBatchSelection(new[] { favorite, normal });
+
+        Assert.True(viewModel.HasBatchSelection);
+        Assert.True(viewModel.CanBatchFavorite);
+        Assert.True(viewModel.CanBatchUnfavorite);
+
+        await viewModel.SetBatchFavoriteAsync(true);
+
+        Assert.True(normal.IsFavorite);
+        Assert.Equal(0, viewModel.BatchSelectedCount);
+        Assert.True(viewModel.IsBatchMode);
+    }
+
+    [Fact]
+    public async Task MoveBatchSelectionAsync_RemovesNotesFromFolderAndSelectsNearestVisibleNote()
+    {
+        var first = CreateNote("first", "First", DateTime.UtcNow.AddMinutes(3));
+        var second = CreateNote("second", "Second", DateTime.UtcNow.AddMinutes(2));
+        var third = CreateNote("third", "Third", DateTime.UtcNow.AddMinutes(1));
+        first.FolderName = second.FolderName = third.FolderName = "项目";
+        var viewModel = new MainViewModel(
+            new InMemoryNoteService(first, second, third),
+            new InMemoryFolderService("项目", "工作"),
+            TimeSpan.FromMilliseconds(700),
+            () => DateTime.Now);
+        await viewModel.LoadAsync();
+        viewModel.ApplyFolderFilter("项目");
+        viewModel.SelectedNote = second;
+        viewModel.EnterBatchMode();
+        viewModel.SetBatchSelection(new[] { first, second });
+
+        await viewModel.MoveBatchSelectionAsync("工作");
+
+        Assert.Equal(new[] { "third" }, viewModel.NotesView.Cast<Note>().Select(note => note.Id));
+        Assert.Same(third, viewModel.SelectedNote);
+        Assert.Equal(0, viewModel.BatchSelectedCount);
+    }
+
+    [Fact]
+    public async Task DeleteBatchSelectionAsync_RemovesNotesAndSelectsNearestVisibleNote()
+    {
+        var first = CreateNote("first", "First", DateTime.UtcNow.AddMinutes(3));
+        var second = CreateNote("second", "Second", DateTime.UtcNow.AddMinutes(2));
+        var third = CreateNote("third", "Third", DateTime.UtcNow.AddMinutes(1));
+        var viewModel = new MainViewModel(new InMemoryNoteService(first, second, third));
+        await viewModel.LoadAsync();
+        viewModel.SelectedNote = second;
+        viewModel.EnterBatchMode();
+        viewModel.SetBatchSelection(new[] { first, second });
+
+        await viewModel.DeleteBatchSelectionAsync();
+
+        Assert.Equal(new[] { "third" }, viewModel.Notes.Select(note => note.Id));
+        Assert.Same(third, viewModel.SelectedNote);
+        Assert.False(viewModel.IsEmpty);
+    }
+
+    [Fact]
+    public async Task FailedBatchOperation_PreservesSelectionAndInMemoryNotes()
+    {
+        var first = CreateNote("first", "First");
+        var second = CreateNote("second", "Second");
+        var service = new InMemoryNoteService(first, second)
+        {
+            BatchFavoriteException = new InvalidOperationException("boom")
+        };
+        var viewModel = new MainViewModel(service);
+        await viewModel.LoadAsync();
+        viewModel.EnterBatchMode();
+        viewModel.SetBatchSelection(new[] { first, second });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => viewModel.SetBatchFavoriteAsync(true));
+
+        Assert.Equal(2, viewModel.BatchSelectedCount);
+        Assert.All(new[] { first, second }, note => Assert.False(note.IsFavorite));
+    }
+
     private static Note CreateNote(string id, string title, DateTime? updatedAt = null)
     {
         var timestamp = updatedAt ?? DateTime.UtcNow;
@@ -545,6 +657,8 @@ public sealed class MainViewModelTests
         public DateTime? FavoriteUpdatedAt { get; init; }
 
         public Exception? FavoriteException { get; init; }
+
+        public Exception? BatchFavoriteException { get; init; }
 
         public Task InitializeAsync(CancellationToken cancellationToken = default)
         {
@@ -606,6 +720,11 @@ public sealed class MainViewModelTests
             bool isFavorite,
             CancellationToken cancellationToken = default)
         {
+            if (BatchFavoriteException is not null)
+            {
+                throw BatchFavoriteException;
+            }
+
             foreach (var note in notes.DistinctBy(note => note.Id))
             {
                 note.IsFavorite = isFavorite;

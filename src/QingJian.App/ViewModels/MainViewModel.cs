@@ -13,6 +13,7 @@ public sealed class MainViewModel : ViewModelBase
     private readonly IFolderService? _folderService;
     private readonly TimeSpan _autoSaveDelay;
     private readonly object _notesSynchronization = new();
+    private readonly BatchSelectionState _batchSelection = new();
     private CancellationTokenSource? _autoSaveCancellation;
     private Note? _selectedNote;
     private bool _isBusy;
@@ -20,6 +21,7 @@ public sealed class MainViewModel : ViewModelBase
     private string _searchText = string.Empty;
     private string? _currentFolderName;
     private NoteNavigationSortMode _navigationSortMode = NoteNavigationSortMode.Time;
+    private bool _isBatchMode;
 
     public MainViewModel(INoteService noteService)
         : this(noteService, null, TimeSpan.FromMilliseconds(700), () => DateTime.Now)
@@ -113,6 +115,26 @@ public sealed class MainViewModel : ViewModelBase
         && !ShowFolderEmptyState
         && !string.IsNullOrWhiteSpace(SearchText)
         && NotesView.IsEmpty;
+
+    public bool IsBatchMode
+    {
+        get => _isBatchMode;
+        private set => SetField(ref _isBatchMode, value);
+    }
+
+    public IReadOnlySet<string> BatchScopeIds => _batchSelection.ScopeIds;
+
+    public int BatchSelectedCount => _batchSelection.SelectedCount;
+
+    public bool HasBatchSelection => BatchSelectedCount > 0;
+
+    public bool CanEnterBatchMode => !IsBatchMode && !NotesView.IsEmpty;
+
+    public bool CanBatchFavorite =>
+        HasBatchSelection && !_batchSelection.AllSelectedAreFavorite;
+
+    public bool CanBatchUnfavorite =>
+        HasBatchSelection && !_batchSelection.AllSelectedAreNotFavorite;
 
     public Note? SelectedNote
     {
@@ -279,6 +301,113 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
+    public void EnterBatchMode()
+    {
+        if (!CanEnterBatchMode)
+        {
+            return;
+        }
+
+        _batchSelection.Enter(NotesView.Cast<Note>().ToArray());
+        IsBatchMode = true;
+        NotifyBatchStateChanged();
+        RefreshNoteNavigation();
+    }
+
+    public void ExitBatchMode()
+    {
+        if (!IsBatchMode)
+        {
+            return;
+        }
+
+        IsBatchMode = false;
+        _batchSelection.Exit();
+        NotifyBatchStateChanged();
+        RefreshNoteNavigation();
+    }
+
+    public void SetBatchSelection(IEnumerable<Note> notes)
+    {
+        if (!IsBatchMode)
+        {
+            return;
+        }
+
+        _batchSelection.SetSelection(notes);
+        NotifyBatchStateChanged();
+    }
+
+    public async Task SetBatchFavoriteAsync(
+        bool isFavorite,
+        CancellationToken cancellationToken = default)
+    {
+        var selectedNotes = _batchSelection.SelectedNotes.ToArray();
+        if (!IsBatchMode || selectedNotes.Length == 0)
+        {
+            return;
+        }
+
+        await _noteService.SetFavoritesAsync(selectedNotes, isFavorite, cancellationToken);
+        _batchSelection.ClearSelection();
+        NotifyBatchStateChanged();
+        RefreshNoteNavigation();
+    }
+
+    public async Task MoveBatchSelectionAsync(
+        string folderName,
+        CancellationToken cancellationToken = default)
+    {
+        var selectedNotes = _batchSelection.SelectedNotes.ToArray();
+        if (!IsBatchMode || selectedNotes.Length == 0)
+        {
+            return;
+        }
+
+        var selectedIndex = GetSelectedNoteVisibleIndex();
+        await _noteService.MoveNotesAsync(selectedNotes, folderName, cancellationToken);
+        if (_folderService is not null)
+        {
+            await RefreshFoldersAsync(cancellationToken);
+        }
+
+        RefreshNoteNavigation();
+        EnsureSelectedNoteIsVisible(selectedIndex);
+        _batchSelection.ClearSelection();
+        NotifyBatchStateChanged();
+    }
+
+    public async Task DeleteBatchSelectionAsync(CancellationToken cancellationToken = default)
+    {
+        var selectedNotes = _batchSelection.SelectedNotes.ToArray();
+        if (!IsBatchMode || selectedNotes.Length == 0)
+        {
+            return;
+        }
+
+        var selectedIndex = GetSelectedNoteVisibleIndex();
+        await _noteService.DeleteNotesAsync(selectedNotes, cancellationToken);
+
+        lock (_notesSynchronization)
+        {
+            foreach (var note in selectedNotes)
+            {
+                Notes.Remove(note);
+            }
+        }
+
+        if (_folderService is not null)
+        {
+            await RefreshFoldersAsync(cancellationToken);
+        }
+
+        RefreshNoteNavigation();
+        EnsureSelectedNoteIsVisible(selectedIndex);
+        _batchSelection.ClearSelection();
+        NotifyBatchStateChanged();
+        OnPropertyChanged(nameof(IsEmpty));
+    }
+
     public Task SaveSelectedNoteNowAsync(CancellationToken cancellationToken = default)
     {
         _autoSaveCancellation?.Cancel();
@@ -429,6 +558,11 @@ public sealed class MainViewModel : ViewModelBase
             return false;
         }
 
+        if (IsBatchMode && !BatchScopeIds.Contains(note.Id))
+        {
+            return false;
+        }
+
         if (CurrentFolderName is not null
             && !string.Equals(note.FolderName, CurrentFolderName, StringComparison.OrdinalIgnoreCase))
         {
@@ -456,6 +590,38 @@ public sealed class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(CurrentFolderDisplayName));
         OnPropertyChanged(nameof(SortToggleToolTip));
         OnPropertyChanged(nameof(SelectedNote));
+        OnPropertyChanged(nameof(CanEnterBatchMode));
+    }
+
+    private int GetSelectedNoteVisibleIndex()
+    {
+        return SelectedNote is null
+            ? 0
+            : Math.Max(NotesView.Cast<Note>().ToList().IndexOf(SelectedNote), 0);
+    }
+
+    private void EnsureSelectedNoteIsVisible(int originalIndex)
+    {
+        if (SelectedNote is not null && NotesView.Cast<Note>().Contains(SelectedNote))
+        {
+            return;
+        }
+
+        var remainingNotes = NotesView.Cast<Note>().ToList();
+        SelectedNote = remainingNotes.Count == 0
+            ? null
+            : remainingNotes[Math.Min(originalIndex, remainingNotes.Count - 1)];
+    }
+
+    private void NotifyBatchStateChanged()
+    {
+        OnPropertyChanged(nameof(IsBatchMode));
+        OnPropertyChanged(nameof(BatchScopeIds));
+        OnPropertyChanged(nameof(BatchSelectedCount));
+        OnPropertyChanged(nameof(HasBatchSelection));
+        OnPropertyChanged(nameof(CanEnterBatchMode));
+        OnPropertyChanged(nameof(CanBatchFavorite));
+        OnPropertyChanged(nameof(CanBatchUnfavorite));
     }
 
     private void ScheduleAutoSave(Note note)
