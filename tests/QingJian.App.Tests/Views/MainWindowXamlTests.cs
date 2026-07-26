@@ -170,7 +170,10 @@ public sealed class MainWindowXamlTests
         var listBox = xaml.Descendants().Single(element => element.Name.LocalName == "ListBox");
         var emptyText = FindNamedElement(xaml, "TextBlock", "NoSearchResultsTextBlock");
 
-        Assert.Equal("{Binding SelectedNote, Mode=OneWay}", (string?)listBox.Attribute("SelectedItem"));
+        Assert.Contains(listBox.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "SelectedItem"
+            && (string?)element.Attribute("Value") == "{Binding SelectedNote, Mode=OneWay}");
         Assert.Equal("NoteListBox_OnSelectionChanged", (string?)listBox.Attribute("SelectionChanged"));
         Assert.Equal("没有匹配的便签", (string?)emptyText.Attribute("Text"));
         Assert.Contains(emptyText.Descendants(), element =>
@@ -244,7 +247,7 @@ public sealed class MainWindowXamlTests
         Assert.NotEmpty(newNoteButtons);
         Assert.All(
             newNoteButtons,
-            button => Assert.Equal("{StaticResource PrimaryButtonStyle}", (string?)button.Attribute("Style")));
+            button => Assert.Equal("{StaticResource PrimaryButtonStyle}", GetAppliedStyle(button)));
         Assert.Equal("{StaticResource DangerIconButtonStyle}", (string?)deleteButton.Attribute("Style"));
     }
 
@@ -354,7 +357,7 @@ public sealed class MainWindowXamlTests
         Assert.NotEmpty(sidebarButtons);
         Assert.All(sidebarButtons, button =>
         {
-            var style = (string?)button.Attribute("Style");
+            var style = GetAppliedStyle(button);
             Assert.Contains(style, new[]
             {
                 "{StaticResource PrimaryButtonStyle}",
@@ -363,6 +366,106 @@ public sealed class MainWindowXamlTests
         });
         Assert.NotNull(roundedButtonBorder);
         Assert.NotNull(roundedNoteItemBorder);
+    }
+
+    [Fact]
+    public void NoteList_SwitchesToMultipleSelectionAndShowsBatchCheckboxes()
+    {
+        var xaml = XDocument.Load(FindMainWindowXamlPath());
+        var listBox = FindNamedElement(xaml, "ListBox", "NoteListBox");
+        var checkbox = FindNamedElement(xaml, "CheckBox", "BatchSelectionCheckBox");
+
+        Assert.Contains(listBox.Descendants(), element =>
+            element.Name.LocalName == "DataTrigger"
+            && (string?)element.Attribute("Binding") == "{Binding IsBatchMode}"
+            && (string?)element.Attribute("Value") == "True"
+            && element.Descendants().Any(setter =>
+                setter.Name.LocalName == "Setter"
+                && (string?)setter.Attribute("Property") == "SelectionMode"
+                && (string?)setter.Attribute("Value") == "Multiple"));
+        Assert.Contains("IsSelected", (string?)checkbox.Attribute("IsChecked"));
+        Assert.Contains(checkbox.Descendants(), element =>
+            element.Name.LocalName == "DataTrigger"
+            && (string?)element.Attribute("Binding") == "{Binding DataContext.IsBatchMode, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+            && (string?)element.Attribute("Value") == "True");
+    }
+
+    [Fact]
+    public void Sidebar_ContainsTwoRowBatchActionBarWithImmediateIconTooltips()
+    {
+        var xaml = XDocument.Load(FindMainWindowXamlPath());
+        var normalFooter = FindNamedElement(xaml, "StackPanel", "NormalSidebarFooter");
+        var actionBar = FindNamedElement(xaml, "Grid", "BatchActionBar");
+        var count = FindNamedElement(xaml, "TextBlock", "BatchSelectedCountTextBlock");
+        var buttonNames = new[]
+        {
+            "BatchSelectAllButton",
+            "BatchClearSelectionButton",
+            "BatchExitButton",
+            "BatchMoveButton",
+            "BatchFavoriteButton",
+            "BatchUnfavoriteButton",
+            "BatchDeleteButton"
+        };
+        var expectedTooltips = new[]
+        {
+            "全选当前结果",
+            "清空选择",
+            "退出批量管理",
+            "移动到文件夹",
+            "批量收藏",
+            "批量取消收藏",
+            "批量删除"
+        };
+
+        Assert.Contains("BatchSelectedCount", (string?)count.Attribute("Text"));
+        Assert.Contains(actionBar.Descendants(), element =>
+            element.Name.LocalName == "DataTrigger"
+            && (string?)element.Attribute("Binding") == "{Binding IsBatchMode}"
+            && (string?)element.Attribute("Value") == "True");
+        Assert.Contains(normalFooter.Descendants(), element =>
+            element.Name.LocalName == "DataTrigger"
+            && (string?)element.Attribute("Binding") == "{Binding IsBatchMode}"
+            && (string?)element.Attribute("Value") == "True");
+
+        var buttons = buttonNames.Select((name, index) =>
+        {
+            var button = FindNamedElement(xaml, "Button", name);
+            Assert.Equal(expectedTooltips[index], (string?)button.Attribute("ToolTip"));
+            Assert.Equal("0", (string?)FindAttributeByLocalName(button, "ToolTipService.InitialShowDelay"));
+            Assert.Contains((string?)button.Attribute("Style"), new[]
+            {
+                "{StaticResource IconButtonStyle}",
+                "{StaticResource DangerIconButtonStyle}"
+            });
+            return button;
+        }).ToArray();
+
+        Assert.All(buttons.Where(button =>
+            (string?)FindAttributeByLocalName(button, "Name") is not "BatchSelectAllButton" and not "BatchMoveButton"),
+            button => Assert.Equal("8,0,0,0", (string?)button.Attribute("Margin")));
+    }
+
+    [Fact]
+    public void BatchMode_DisablesEditorAndConflictingNavigationControls()
+    {
+        var xaml = XDocument.Load(FindMainWindowXamlPath());
+        var editor = FindNamedElement(xaml, "Grid", "EditorInteractionPanel");
+        var newNote = FindNamedElement(xaml, "Button", "NewNoteButton");
+        var search = FindNamedElement(xaml, "TextBox", "NoteSearchTextBox");
+        var sort = FindNamedElement(xaml, "Button", "NavigationSortButton");
+
+        foreach (var element in new[] { editor, newNote, search, sort })
+        {
+            Assert.Contains(element.Descendants(), descendant =>
+                descendant.Name.LocalName == "DataTrigger"
+                && (string?)descendant.Attribute("Binding") == "{Binding IsBatchMode}"
+                && (string?)descendant.Attribute("Value") == "True"
+                && descendant.Descendants().Any(setter =>
+                    setter.Name.LocalName == "Setter"
+                    && (string?)setter.Attribute("Property") == "IsEnabled"
+                    && (string?)setter.Attribute("Value") == "False"));
+        }
     }
 
     private static string FindMainWindowXamlPath()
@@ -416,6 +519,14 @@ public sealed class MainWindowXamlTests
     private static XAttribute? FindAttributeByLocalName(XElement element, string localName)
     {
         return element.Attributes().SingleOrDefault(attribute => attribute.Name.LocalName == localName);
+    }
+
+    private static string? GetAppliedStyle(XElement element)
+    {
+        return (string?)element.Attribute("Style")
+            ?? (string?)element.Descendants()
+                .FirstOrDefault(descendant => descendant.Name.LocalName == "Style")?
+                .Attribute("BasedOn");
     }
 
     private static XElement FindNamedElement(XDocument document, string elementName, string name)
