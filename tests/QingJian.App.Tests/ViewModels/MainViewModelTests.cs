@@ -336,6 +336,114 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task FolderFilter_CombinesWithSearchAndExcludesOtherFolders()
+    {
+        var now = new DateTime(2026, 7, 26, 12, 0, 0, DateTimeKind.Local);
+        var projectTitle = CreateNote("project-title", "Alpha project", now.AddMinutes(-1));
+        projectTitle.FolderName = "项目";
+        var projectBody = CreateNote("project-body", "Other", now.AddMinutes(-2));
+        projectBody.Content = "contains alpha";
+        projectBody.FolderName = "项目";
+        var other = CreateNote("other", "Alpha other", now.AddMinutes(-3));
+        other.FolderName = "工作";
+        var viewModel = new MainViewModel(
+            new InMemoryNoteService(projectTitle, projectBody, other),
+            new InMemoryFolderService("项目", "工作"),
+            TimeSpan.FromMilliseconds(700),
+            () => now);
+
+        await viewModel.LoadAsync();
+        viewModel.ApplyFolderFilter("项目");
+        viewModel.SearchText = "alpha";
+
+        Assert.Equal(new[] { "project-title", "project-body" },
+            viewModel.NotesView.Cast<Note>().Select(note => note.Id));
+        Assert.DoesNotContain(viewModel.NotesView.Cast<Note>(), note => note.FolderName == "工作");
+    }
+
+    [Fact]
+    public async Task NewNoteAsync_UsesCurrentFolderAsTheNewNoteDestination()
+    {
+        var service = new InMemoryNoteService();
+        var viewModel = new MainViewModel(
+            service,
+            new InMemoryFolderService("项目"),
+            TimeSpan.FromMilliseconds(700),
+            () => DateTime.Now);
+        await viewModel.LoadAsync();
+        viewModel.ApplyFolderFilter("项目");
+
+        await viewModel.NewNoteAsync();
+
+        Assert.Equal("项目", service.LastCreatedFolder);
+        Assert.Equal("项目", viewModel.SelectedNote?.FolderName);
+    }
+
+    [Fact]
+    public async Task MoveNoteAsync_RemovesMovedNoteAndSelectsNextVisibleNote()
+    {
+        var now = new DateTime(2026, 7, 26, 12, 0, 0, DateTimeKind.Local);
+        var moved = CreateNote("moved", "Moved", now.AddMinutes(-1));
+        moved.FolderName = "项目";
+        var next = CreateNote("next", "Next", now.AddMinutes(-2));
+        next.FolderName = "项目";
+        var service = new InMemoryNoteService(moved, next);
+        var viewModel = new MainViewModel(
+            service,
+            new InMemoryFolderService("项目"),
+            TimeSpan.FromMilliseconds(700),
+            () => now);
+        await viewModel.LoadAsync();
+        viewModel.ApplyFolderFilter("项目");
+        viewModel.SelectedNote = moved;
+
+        await viewModel.MoveNoteAsync(moved, "未分类");
+
+        Assert.DoesNotContain(moved, viewModel.NotesView.Cast<Note>());
+        Assert.Same(next, viewModel.SelectedNote);
+    }
+
+    [Fact]
+    public async Task ApplyFolderRename_UpdatesFilterAndInMemoryNotes()
+    {
+        var note = CreateNote("note", "Note");
+        note.FolderName = "项目";
+        var viewModel = new MainViewModel(
+            new InMemoryNoteService(note),
+            new InMemoryFolderService("项目"),
+            TimeSpan.FromMilliseconds(700),
+            () => DateTime.Now);
+        await viewModel.LoadAsync();
+        viewModel.ApplyFolderFilter("项目");
+
+        viewModel.ApplyFolderRename("项目", "工作");
+
+        Assert.Equal("工作", viewModel.CurrentFolderName);
+        Assert.Equal("工作", note.FolderName);
+        Assert.Contains(note, viewModel.NotesView.Cast<Note>());
+    }
+
+    [Fact]
+    public async Task ApplyFolderDeletion_MovesInMemoryNotesAndFilterToUncategorized()
+    {
+        var note = CreateNote("note", "Note");
+        note.FolderName = "项目";
+        var viewModel = new MainViewModel(
+            new InMemoryNoteService(note),
+            new InMemoryFolderService("项目"),
+            TimeSpan.FromMilliseconds(700),
+            () => DateTime.Now);
+        await viewModel.LoadAsync();
+        viewModel.ApplyFolderFilter("项目");
+
+        viewModel.ApplyFolderDeletion("项目");
+
+        Assert.Equal("未分类", viewModel.CurrentFolderName);
+        Assert.Equal("未分类", note.FolderName);
+        Assert.Contains(note, viewModel.NotesView.Cast<Note>());
+    }
+
+    [Fact]
     public void AddSavedNote_InsertsNoteAtTopAndSelectsWhenRequested()
     {
         var existing = CreateNote("existing", "Existing");
@@ -430,6 +538,8 @@ public sealed class MainViewModelTests
 
         public List<string> SavedIds { get; } = new();
 
+        public string? LastCreatedFolder { get; private set; }
+
         public DateTime? SavedUpdatedAt { get; init; }
 
         public DateTime? FavoriteUpdatedAt { get; init; }
@@ -455,6 +565,7 @@ public sealed class MainViewModelTests
 
         public Task<Note> CreateNoteInFolderAsync(string folderName, CancellationToken cancellationToken = default)
         {
+            LastCreatedFolder = folderName;
             var note = CreateNote($"note-{_notes.Count + 1}", NoteService.DefaultTitle);
             note.FolderName = folderName;
             _notes.Insert(0, note);
@@ -496,6 +607,39 @@ public sealed class MainViewModelTests
             _notes.RemoveAll(item => item.Id == note.Id);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class InMemoryFolderService : IFolderService
+    {
+        private readonly List<FolderSummary> _folders;
+
+        public InMemoryFolderService(params string[] folderNames)
+        {
+            _folders = new List<FolderSummary>
+            {
+                new(Folder.SystemUncategorizedId, FolderNamePolicy.UncategorizedName, true, 0, true)
+            };
+            _folders.AddRange(folderNames.Select((name, index) =>
+                new FolderSummary($"folder-{index}", name, false, 0, true)));
+        }
+
+        public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<IReadOnlyList<FolderSummary>> GetFoldersAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<FolderSummary>>(_folders);
+
+        public Task<FolderSummary> CreateAsync(string name, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<FolderSummary> RenameAsync(FolderSummary folder, string newName, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task DeleteAsync(FolderSummary folder, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<bool> IsValidMoveTargetAsync(string folderName, CancellationToken cancellationToken = default)
+            => Task.FromResult(_folders.Any(folder =>
+                string.Equals(folder.Name, folderName, StringComparison.OrdinalIgnoreCase)));
     }
 
     private static async Task WaitUntilAsync(Func<bool> condition)

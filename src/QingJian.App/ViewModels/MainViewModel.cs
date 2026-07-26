@@ -10,6 +10,7 @@ namespace QingJian.App.ViewModels;
 public sealed class MainViewModel : ViewModelBase
 {
     private readonly INoteService _noteService;
+    private readonly IFolderService? _folderService;
     private readonly TimeSpan _autoSaveDelay;
     private readonly object _notesSynchronization = new();
     private CancellationTokenSource? _autoSaveCancellation;
@@ -17,21 +18,37 @@ public sealed class MainViewModel : ViewModelBase
     private bool _isBusy;
     private bool _isLoadingSelection;
     private string _searchText = string.Empty;
+    private string? _currentFolderName;
     private NoteNavigationSortMode _navigationSortMode = NoteNavigationSortMode.Time;
 
     public MainViewModel(INoteService noteService)
-        : this(noteService, TimeSpan.FromMilliseconds(700), () => DateTime.Now)
+        : this(noteService, null, TimeSpan.FromMilliseconds(700), () => DateTime.Now)
     {
     }
 
     public MainViewModel(INoteService noteService, TimeSpan autoSaveDelay)
-        : this(noteService, autoSaveDelay, () => DateTime.Now)
+        : this(noteService, null, autoSaveDelay, () => DateTime.Now)
     {
     }
 
     public MainViewModel(INoteService noteService, TimeSpan autoSaveDelay, Func<DateTime> localNow)
+        : this(noteService, null, autoSaveDelay, localNow)
+    {
+    }
+
+    public MainViewModel(INoteService noteService, IFolderService folderService)
+        : this(noteService, folderService, TimeSpan.FromMilliseconds(700), () => DateTime.Now)
+    {
+    }
+
+    public MainViewModel(
+        INoteService noteService,
+        IFolderService? folderService,
+        TimeSpan autoSaveDelay,
+        Func<DateTime> localNow)
     {
         _noteService = noteService;
+        _folderService = folderService;
         _autoSaveDelay = autoSaveDelay;
         BindingOperations.EnableCollectionSynchronization(Notes, _notesSynchronization);
         NotesView = new ListCollectionView(Notes)
@@ -50,6 +67,8 @@ public sealed class MainViewModel : ViewModelBase
 
     public ObservableCollection<Note> Notes { get; } = new();
 
+    public ObservableCollection<FolderSummary> Folders { get; } = new();
+
     public ListCollectionView NotesView { get; }
 
     public string SearchText
@@ -65,6 +84,20 @@ public sealed class MainViewModel : ViewModelBase
             RefreshNoteNavigation();
         }
     }
+
+    public string? CurrentFolderName
+    {
+        get => _currentFolderName;
+        private set => SetField(ref _currentFolderName, value);
+    }
+
+    public bool HasFolderFilter => CurrentFolderName is not null;
+
+    public string CurrentFolderDisplayName => CurrentFolderName ?? FolderNamePolicy.AllNotesName;
+
+    public bool ShowFolderEmptyState => HasFolderFilter
+        && Folders.FirstOrDefault(folder =>
+            string.Equals(folder.Name, CurrentFolderName, StringComparison.OrdinalIgnoreCase))?.NoteCount == 0;
 
     public NoteNavigationSortMode NavigationSortMode
     {
@@ -138,6 +171,12 @@ public sealed class MainViewModel : ViewModelBase
         try
         {
             await _noteService.InitializeAsync(cancellationToken);
+            if (_folderService is not null)
+            {
+                await _folderService.InitializeAsync(cancellationToken);
+                await RefreshFoldersAsync(cancellationToken);
+            }
+
             var notes = await _noteService.GetActiveNotesAsync(cancellationToken);
 
             lock (_notesSynchronization)
@@ -162,7 +201,9 @@ public sealed class MainViewModel : ViewModelBase
 
     public async Task NewNoteAsync()
     {
-        var note = await _noteService.CreateNoteAsync();
+        var note = CurrentFolderName is null
+            ? await _noteService.CreateNoteAsync()
+            : await _noteService.CreateNoteInFolderAsync(CurrentFolderName);
         lock (_notesSynchronization)
         {
             Notes.Insert(0, note);
@@ -170,6 +211,10 @@ public sealed class MainViewModel : ViewModelBase
 
         RefreshNoteNavigation();
         SelectedNote = note;
+        if (_folderService is not null)
+        {
+            await RefreshFoldersAsync();
+        }
         OnPropertyChanged(nameof(IsEmpty));
     }
 
@@ -256,6 +301,108 @@ public sealed class MainViewModel : ViewModelBase
         NotesView.Dispatcher.BeginInvoke(DispatcherPriority.DataBind, new Action(RefreshNoteNavigationCore));
     }
 
+    public void ApplyFolderFilter(string? folderName)
+    {
+        var normalizedName = string.IsNullOrWhiteSpace(folderName)
+            ? null
+            : FolderNamePolicy.NormalizeDisplayName(folderName);
+        CurrentFolderName = normalizedName;
+        RefreshNoteNavigation();
+
+        if (SelectedNote is not null && NotesView.Cast<Note>().Contains(SelectedNote))
+        {
+            return;
+        }
+
+        SelectedNote = NotesView.Cast<Note>().FirstOrDefault();
+    }
+
+    public async Task RefreshFoldersAsync(CancellationToken cancellationToken = default)
+    {
+        if (_folderService is null)
+        {
+            return;
+        }
+
+        var folders = await _folderService.GetFoldersAsync(cancellationToken);
+        lock (_notesSynchronization)
+        {
+            Folders.Clear();
+            foreach (var folder in folders)
+            {
+                Folders.Add(folder);
+            }
+        }
+
+        if (CurrentFolderName is not null
+            && !Folders.Any(folder =>
+                string.Equals(folder.Name, CurrentFolderName, StringComparison.OrdinalIgnoreCase)))
+        {
+            CurrentFolderName = FolderNamePolicy.UncategorizedName;
+        }
+
+        RefreshNoteNavigation();
+    }
+
+    public void ApplyFolderRename(string oldName, string newName)
+    {
+        if (string.Equals(CurrentFolderName, oldName, StringComparison.OrdinalIgnoreCase))
+        {
+            CurrentFolderName = newName;
+        }
+
+        foreach (var note in Notes.Where(note =>
+                     string.Equals(note.FolderName, oldName, StringComparison.OrdinalIgnoreCase)))
+        {
+            note.FolderName = newName;
+        }
+
+        RefreshNoteNavigation();
+    }
+
+    public void ApplyFolderDeletion(string deletedName)
+    {
+        if (string.Equals(CurrentFolderName, deletedName, StringComparison.OrdinalIgnoreCase))
+        {
+            CurrentFolderName = FolderNamePolicy.UncategorizedName;
+        }
+
+        foreach (var note in Notes.Where(note =>
+                     string.Equals(note.FolderName, deletedName, StringComparison.OrdinalIgnoreCase)))
+        {
+            note.FolderName = FolderNamePolicy.UncategorizedName;
+        }
+
+        RefreshNoteNavigation();
+    }
+
+    public async Task MoveNoteAsync(
+        Note note,
+        string folderName,
+        CancellationToken cancellationToken = default)
+    {
+        var visibleNotes = NotesView.Cast<Note>().ToList();
+        var originalIndex = visibleNotes.IndexOf(note);
+        var wasSelected = ReferenceEquals(SelectedNote, note);
+
+        await _noteService.MoveNoteAsync(note, folderName, cancellationToken);
+        if (_folderService is not null)
+        {
+            await RefreshFoldersAsync(cancellationToken);
+        }
+        RefreshNoteNavigation();
+
+        if (!wasSelected || NotesView.Cast<Note>().Contains(note))
+        {
+            return;
+        }
+
+        var remainingNotes = NotesView.Cast<Note>().ToList();
+        SelectedNote = remainingNotes.Count == 0
+            ? null
+            : remainingNotes[Math.Min(Math.Max(originalIndex, 0), remainingNotes.Count - 1)];
+    }
+
     public async Task ToggleFavoriteAsync(Note note)
     {
         await _noteService.SetFavoriteAsync(note, !note.IsFavorite);
@@ -276,9 +423,19 @@ public sealed class MainViewModel : ViewModelBase
 
     private bool FilterNote(object item)
     {
-        return item is Note note
-            && (string.IsNullOrWhiteSpace(SearchText)
-                || NoteNavigationHelper.GetSearchMatch(note, SearchText) != NoteSearchMatchKind.None);
+        if (item is not Note note)
+        {
+            return false;
+        }
+
+        if (CurrentFolderName is not null
+            && !string.Equals(note.FolderName, CurrentFolderName, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return string.IsNullOrWhiteSpace(SearchText)
+            || NoteNavigationHelper.GetSearchMatch(note, SearchText) != NoteSearchMatchKind.None;
     }
 
     private void ToggleNavigationSort()
@@ -293,6 +450,9 @@ public sealed class MainViewModel : ViewModelBase
     {
         NotesView.Refresh();
         OnPropertyChanged(nameof(ShowNoSearchResults));
+        OnPropertyChanged(nameof(ShowFolderEmptyState));
+        OnPropertyChanged(nameof(HasFolderFilter));
+        OnPropertyChanged(nameof(CurrentFolderDisplayName));
         OnPropertyChanged(nameof(SortToggleToolTip));
         OnPropertyChanged(nameof(SelectedNote));
     }
