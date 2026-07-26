@@ -106,6 +106,8 @@ public sealed class FolderManagementViewModel : ViewModelBase
         }
 
         EditingItem = item;
+        item.EditText = item.Name;
+        item.IsEditing = true;
         EditorText = item.Name;
         ErrorMessage = string.Empty;
         IsEditing = true;
@@ -128,7 +130,7 @@ public sealed class FolderManagementViewModel : ViewModelBase
             else
             {
                 var oldName = EditingItem.Name;
-                var renamed = await _folderService.RenameAsync(EditingItem.ToSummary(), EditorText);
+                var renamed = await _folderService.RenameAsync(EditingItem.ToSummary(), EditingItem.EditText);
                 FolderRenamed?.Invoke(oldName, renamed.Name);
             }
 
@@ -165,6 +167,11 @@ public sealed class FolderManagementViewModel : ViewModelBase
 
     private void BeginCreate()
     {
+        if (EditingItem is not null)
+        {
+            EditingItem.IsEditing = false;
+        }
+
         EditingItem = null;
         EditorText = string.Empty;
         ErrorMessage = string.Empty;
@@ -179,6 +186,11 @@ public sealed class FolderManagementViewModel : ViewModelBase
 
     private void EndEdit()
     {
+        if (EditingItem is not null)
+        {
+            EditingItem.IsEditing = false;
+        }
+
         IsEditing = false;
         EditingItem = null;
         EditorText = string.Empty;
