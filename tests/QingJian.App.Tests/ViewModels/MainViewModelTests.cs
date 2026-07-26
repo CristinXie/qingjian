@@ -601,6 +601,45 @@ public sealed class MainViewModelTests
             return Task.CompletedTask;
         }
 
+        public Task SetFavoritesAsync(
+            IReadOnlyCollection<Note> notes,
+            bool isFavorite,
+            CancellationToken cancellationToken = default)
+        {
+            foreach (var note in notes.DistinctBy(note => note.Id))
+            {
+                note.IsFavorite = isFavorite;
+                note.FavoritedAt = isFavorite ? DateTime.UtcNow : null;
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task MoveNotesAsync(
+            IReadOnlyCollection<Note> notes,
+            string folderName,
+            CancellationToken cancellationToken = default)
+        {
+            foreach (var note in notes.DistinctBy(note => note.Id))
+            {
+                note.FolderName = folderName;
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteNotesAsync(
+            IReadOnlyCollection<Note> notes,
+            CancellationToken cancellationToken = default)
+        {
+            foreach (var note in notes.DistinctBy(note => note.Id))
+            {
+                note.IsDeleted = true;
+            }
+
+            return Task.CompletedTask;
+        }
+
         public Task DeleteNoteAsync(Note note, CancellationToken cancellationToken = default)
         {
             DeletedIds.Add(note.Id);

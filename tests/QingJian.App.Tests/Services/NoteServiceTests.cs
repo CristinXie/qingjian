@@ -119,11 +119,136 @@ public sealed class NoteServiceTests
         Assert.Equal("未分类", note.FolderName);
     }
 
-    private static Note CreateNote(DateTime updatedAt)
+    [Fact]
+    public async Task SetFavoritesAsync_UsesOneTimestampAndPreservesExistingFavorites()
+    {
+        var repository = new InMemoryNoteRepository();
+        var updatedAt = new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc);
+        var now = updatedAt.AddHours(2);
+        var normal = CreateNote(updatedAt, "normal");
+        var existing = CreateNote(updatedAt.AddMinutes(1), "existing");
+        var existingFavoriteTime = updatedAt.AddHours(1);
+        existing.IsFavorite = true;
+        existing.FavoritedAt = existingFavoriteTime;
+        var service = new NoteService(repository, () => now);
+
+        await service.SetFavoritesAsync(new[] { normal, normal, existing }, true);
+
+        Assert.True(normal.IsFavorite);
+        Assert.Equal(now, normal.FavoritedAt);
+        Assert.Equal(updatedAt, normal.UpdatedAt);
+        Assert.True(existing.IsFavorite);
+        Assert.Equal(existingFavoriteTime, existing.FavoritedAt);
+        var update = Assert.Single(repository.BatchFavoriteUpdates);
+        Assert.Equal(new[] { "normal" }, update.NoteIds);
+        Assert.True(update.IsFavorite);
+        Assert.Equal(now, update.FavoritedAt);
+    }
+
+    [Fact]
+    public async Task SetFavoritesAsync_DoesNotChangeMemoryWhenPersistenceFails()
+    {
+        var repository = new InMemoryNoteRepository
+        {
+            BatchFavoriteUpdateException = new InvalidOperationException("boom")
+        };
+        var updatedAt = new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc);
+        var first = CreateNote(updatedAt, "first");
+        var second = CreateNote(updatedAt.AddMinutes(1), "second");
+        var service = new NoteService(repository, () => updatedAt.AddHours(1));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SetFavoritesAsync(new[] { first, second }, true));
+
+        Assert.All(new[] { first, second }, note =>
+        {
+            Assert.False(note.IsFavorite);
+            Assert.Null(note.FavoritedAt);
+        });
+    }
+
+    [Fact]
+    public async Task MoveNotesAsync_ValidatesOnceAndUpdatesOnlyChangedNotesAfterPersistence()
+    {
+        var repository = new InMemoryNoteRepository();
+        var folderService = new FakeFolderService("工作");
+        var updatedAt = new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc);
+        var first = CreateNote(updatedAt, "first");
+        var alreadyThere = CreateNote(updatedAt.AddMinutes(1), "existing");
+        alreadyThere.FolderName = "工作";
+        var service = new NoteService(repository, folderService, () => updatedAt.AddHours(1));
+
+        await service.MoveNotesAsync(new[] { first, first, alreadyThere }, " 工作 ");
+
+        Assert.Equal("工作", first.FolderName);
+        Assert.Equal(updatedAt, first.UpdatedAt);
+        var update = Assert.Single(repository.BatchFolderUpdates);
+        Assert.Equal(new[] { "first" }, update.NoteIds);
+        Assert.Equal("工作", update.FolderName);
+        Assert.Equal(1, folderService.MoveTargetValidationCount);
+    }
+
+    [Fact]
+    public async Task MoveNotesAsync_DoesNotChangeMemoryWhenPersistenceFails()
+    {
+        var repository = new InMemoryNoteRepository
+        {
+            BatchFolderUpdateException = new InvalidOperationException("boom")
+        };
+        var note = CreateNote(new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc), "note");
+        var service = new NoteService(repository, new FakeFolderService("工作"), () => note.UpdatedAt);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.MoveNotesAsync(new[] { note }, "工作"));
+
+        Assert.Equal("未分类", note.FolderName);
+    }
+
+    [Fact]
+    public async Task DeleteNotesAsync_UsesOneTimestampAndMarksMemoryAfterPersistence()
+    {
+        var repository = new InMemoryNoteRepository();
+        var deletedAt = new DateTime(2026, 7, 20, 10, 0, 0, DateTimeKind.Utc);
+        var first = CreateNote(deletedAt.AddHours(-2), "first");
+        var second = CreateNote(deletedAt.AddHours(-1), "second");
+        var service = new NoteService(repository, () => deletedAt);
+
+        await service.DeleteNotesAsync(new[] { first, first, second });
+
+        Assert.All(new[] { first, second }, note =>
+        {
+            Assert.True(note.IsDeleted);
+            Assert.Equal(deletedAt, note.UpdatedAt);
+        });
+        var update = Assert.Single(repository.BatchDeleteUpdates);
+        Assert.Equal(new[] { "first", "second" }, update.NoteIds);
+        Assert.Equal(deletedAt, update.DeletedAt);
+    }
+
+    [Fact]
+    public async Task BatchServiceOperations_SkipEmptyAndNoOpCollections()
+    {
+        var repository = new InMemoryNoteRepository();
+        var updatedAt = new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc);
+        var favorite = CreateNote(updatedAt, "favorite");
+        favorite.IsFavorite = true;
+        favorite.FavoritedAt = updatedAt.AddMinutes(-1);
+        var service = new NoteService(repository, new FakeFolderService("未分类"), () => updatedAt.AddHours(1));
+
+        await service.SetFavoritesAsync(new[] { favorite }, true);
+        await service.MoveNotesAsync(new[] { favorite }, "未分类");
+        await service.DeleteNotesAsync(Array.Empty<Note>());
+
+        Assert.Empty(repository.BatchFavoriteUpdates);
+        Assert.Empty(repository.BatchFolderUpdates);
+        Assert.Empty(repository.BatchDeleteUpdates);
+    }
+
+    private static Note CreateNote(DateTime updatedAt, string id = "note-1")
     {
         return new Note
         {
-            Id = "note-1",
+            Id = id,
             Title = "Title",
             Content = "Body",
             CreatedAt = updatedAt.AddMinutes(-1),
@@ -143,9 +268,21 @@ public sealed class NoteServiceTests
 
         public List<Note> FolderUpdates { get; } = new();
 
+        public List<(string[] NoteIds, bool IsFavorite, DateTime? FavoritedAt)> BatchFavoriteUpdates { get; } = new();
+
+        public List<(string[] NoteIds, string FolderName)> BatchFolderUpdates { get; } = new();
+
+        public List<(string[] NoteIds, DateTime DeletedAt)> BatchDeleteUpdates { get; } = new();
+
         public Exception? FavoriteUpdateException { get; init; }
 
         public Exception? FolderUpdateException { get; init; }
+
+        public Exception? BatchFavoriteUpdateException { get; init; }
+
+        public Exception? BatchFolderUpdateException { get; init; }
+
+        public Exception? BatchDeleteUpdateException { get; init; }
 
         public Task InitializeAsync(CancellationToken cancellationToken = default)
         {
@@ -197,6 +334,12 @@ public sealed class NoteServiceTests
             DateTime? favoritedAt,
             CancellationToken cancellationToken = default)
         {
+            if (BatchFavoriteUpdateException is not null)
+            {
+                throw BatchFavoriteUpdateException;
+            }
+
+            BatchFavoriteUpdates.Add((noteIds.ToArray(), isFavorite, favoritedAt));
             return Task.CompletedTask;
         }
 
@@ -205,6 +348,12 @@ public sealed class NoteServiceTests
             string folderName,
             CancellationToken cancellationToken = default)
         {
+            if (BatchFolderUpdateException is not null)
+            {
+                throw BatchFolderUpdateException;
+            }
+
+            BatchFolderUpdates.Add((noteIds.ToArray(), folderName));
             return Task.CompletedTask;
         }
 
@@ -221,6 +370,12 @@ public sealed class NoteServiceTests
             DateTime deletedAt,
             CancellationToken cancellationToken = default)
         {
+            if (BatchDeleteUpdateException is not null)
+            {
+                throw BatchDeleteUpdateException;
+            }
+
+            BatchDeleteUpdates.Add((noteIds.ToArray(), deletedAt));
             return Task.CompletedTask;
         }
     }
@@ -234,6 +389,8 @@ public sealed class NoteServiceTests
             _folderNames.UnionWith(folderNames);
             _folderNames.Add(FolderNamePolicy.UncategorizedName);
         }
+
+        public int MoveTargetValidationCount { get; private set; }
 
         public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
@@ -250,6 +407,9 @@ public sealed class NoteServiceTests
             => throw new NotSupportedException();
 
         public Task<bool> IsValidMoveTargetAsync(string folderName, CancellationToken cancellationToken = default)
-            => Task.FromResult(_folderNames.Contains(folderName));
+        {
+            MoveTargetValidationCount++;
+            return Task.FromResult(_folderNames.Contains(folderName));
+        }
     }
 }

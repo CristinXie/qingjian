@@ -18,5 +18,19 @@ public interface INoteService
 
     Task MoveNoteAsync(Note note, string folderName, CancellationToken cancellationToken = default);
 
+    Task SetFavoritesAsync(
+        IReadOnlyCollection<Note> notes,
+        bool isFavorite,
+        CancellationToken cancellationToken = default);
+
+    Task MoveNotesAsync(
+        IReadOnlyCollection<Note> notes,
+        string folderName,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteNotesAsync(
+        IReadOnlyCollection<Note> notes,
+        CancellationToken cancellationToken = default);
+
     Task DeleteNoteAsync(Note note, CancellationToken cancellationToken = default);
 }
