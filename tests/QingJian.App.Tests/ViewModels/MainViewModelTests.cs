@@ -498,6 +498,25 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task ReloadActiveNotesAsync_AddsRestoredNotesAndPreservesSelectedId()
+    {
+        var selected = CreateNote("selected", "Selected");
+        var service = new InMemoryNoteService(selected);
+        var viewModel = new MainViewModel(service);
+        await viewModel.LoadAsync();
+        viewModel.SelectedNote = selected;
+        var restored = CreateNote("restored", "Restored");
+        restored.IsDeleted = true;
+        restored.DeletedAt = DateTime.UtcNow;
+        await service.RestoreNoteAsync(restored);
+
+        await viewModel.ReloadActiveNotesAsync();
+
+        Assert.Equal(new[] { "selected", "restored" }, viewModel.Notes.Select(note => note.Id));
+        Assert.Equal("selected", viewModel.SelectedNote?.Id);
+    }
+
+    [Fact]
     public async Task AddSavedNote_AllowsInsertionAfterAsynchronousContinuation()
     {
         var added = CreateNote("added", "Added");

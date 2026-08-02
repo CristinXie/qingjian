@@ -185,10 +185,10 @@ public sealed class MainWindowXamlTests
     }
 
     [Fact]
-    public void Sidebar_FooterWiresSettingsAndKeepsOtherPlaceholderButtonsInOrder()
+    public void Sidebar_FooterWiresSettingsFoldersBatchAndRecycleBinInOrder()
     {
         var xaml = XDocument.Load(FindMainWindowXamlPath());
-        var expected = new[] { "SettingsButton", "FolderButton", "BatchManagementButton" };
+        var expected = new[] { "SettingsButton", "FolderButton", "BatchManagementButton", "RecycleBinButton" };
         var buttons = xaml.Descendants()
             .Where(element => element.Name.LocalName == "Button")
             .Where(element => expected.Contains((string?)FindAttributeByLocalName(element, "Name")))
@@ -199,6 +199,9 @@ public sealed class MainWindowXamlTests
         Assert.Equal("FolderButton_OnClick", (string?)buttons[1].Attribute("Click"));
         Assert.Null(buttons[2].Attribute("Command"));
         Assert.Equal("BatchManagementButton_OnClick", (string?)buttons[2].Attribute("Click"));
+        Assert.Equal("RecycleBinButton_OnClick", (string?)buttons[3].Attribute("Click"));
+        Assert.Equal("回收站", (string?)buttons[3].Attribute("ToolTip"));
+        Assert.Equal("8,0,0,0", (string?)buttons[3].Attribute("Margin"));
         Assert.All(buttons, button =>
         {
             Assert.Equal("{StaticResource IconButtonStyle}", (string?)button.Attribute("Style"));
@@ -456,6 +459,10 @@ public sealed class MainWindowXamlTests
             });
             return button;
         }).ToArray();
+
+        var clearSelection = FindNamedElement(xaml, "Button", "BatchClearSelectionButton");
+        Assert.Equal("\uE74D", (string?)clearSelection.Attribute("Content"));
+        Assert.Equal("{StaticResource IconButtonStyle}", (string?)clearSelection.Attribute("Style"));
 
         Assert.All(buttons.Where(button =>
             (string?)FindAttributeByLocalName(button, "Name") is not "BatchSelectAllButton" and not "BatchMoveButton"),

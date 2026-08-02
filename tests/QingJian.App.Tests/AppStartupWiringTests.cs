@@ -59,6 +59,18 @@ public sealed class AppStartupWiringTests
         Assert.Contains("FolderManagementRequested", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Startup_WiresRecycleBinWindowAndRefreshesMainNavigationAfterClose()
+    {
+        var source = File.ReadAllText(FindAppSourcePath());
+
+        Assert.Contains("RecycleBinRequested", source, StringComparison.Ordinal);
+        Assert.Contains("new RecycleBinViewModel(noteService)", source, StringComparison.Ordinal);
+        Assert.Contains("new RecycleBinWindow", source, StringComparison.Ordinal);
+        Assert.Contains("await mainViewModel.ReloadActiveNotesAsync()", source, StringComparison.Ordinal);
+        Assert.Contains("await mainViewModel.RefreshFoldersAsync()", source, StringComparison.Ordinal);
+    }
+
     private static string FindAppSourcePath()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

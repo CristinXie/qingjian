@@ -36,6 +36,12 @@ public sealed class MainWindowCodeBehindTests
         Assert.Contains("SettingsRequested?.Invoke", source, StringComparison.Ordinal);
         Assert.Contains("FolderManagementRequested", source, StringComparison.Ordinal);
         Assert.Contains("FolderButton_OnClick", source, StringComparison.Ordinal);
+        Assert.Contains("public event Func<Task>? RecycleBinRequested", source, StringComparison.Ordinal);
+        Assert.Contains("RecycleBinButton_OnClick", source, StringComparison.Ordinal);
+        Assert.Contains("await PullLatestEditorMarkdownAsync()", source, StringComparison.Ordinal);
+        Assert.Contains("await _viewModel.SaveSelectedNoteNowAsync()", source, StringComparison.Ordinal);
+        Assert.Contains("await RecycleBinRequested.Invoke()", source, StringComparison.Ordinal);
+        Assert.Contains("打开回收站失败", source, StringComparison.Ordinal);
         Assert.Contains("FolderAssignmentButton_OnClick", source, StringComparison.Ordinal);
         Assert.Contains("FolderNameDialog", source, StringComparison.Ordinal);
         Assert.Contains("ApplyFolderFilterAsync", source, StringComparison.Ordinal);

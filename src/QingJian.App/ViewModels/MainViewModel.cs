@@ -301,6 +301,30 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
+    public async Task ReloadActiveNotesAsync(CancellationToken cancellationToken = default)
+    {
+        var selectedId = SelectedNote?.Id;
+        var notes = await _noteService.GetActiveNotesAsync(cancellationToken);
+
+        lock (_notesSynchronization)
+        {
+            Notes.Clear();
+            foreach (var note in notes)
+            {
+                Notes.Add(note);
+            }
+        }
+
+        RefreshNoteNavigation();
+        var selected = selectedId is null
+            ? null
+            : Notes.FirstOrDefault(note => note.Id == selectedId);
+        SelectedNote = selected is not null && NotesView.Contains(selected)
+            ? selected
+            : NotesView.Cast<Note>().FirstOrDefault();
+        OnPropertyChanged(nameof(IsEmpty));
+    }
+
     public void EnterBatchMode()
     {
         if (!CanEnterBatchMode)

@@ -41,6 +41,8 @@ public partial class MainWindow : Window
 
     public event EventHandler? FolderManagementRequested;
 
+    public event Func<Task>? RecycleBinRequested;
+
     public MainWindow(
         MainViewModel viewModel,
         AppSettingsService settingsService,
@@ -109,6 +111,30 @@ public partial class MainWindow : Window
     private void FolderButton_OnClick(object sender, RoutedEventArgs e)
     {
         FolderManagementRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private async void RecycleBinButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (RecycleBinRequested is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await PullLatestEditorMarkdownAsync();
+            await _viewModel.SaveSelectedNoteNowAsync();
+            await RecycleBinRequested.Invoke();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                this,
+                $"打开回收站失败。\n\n{ex.Message}",
+                "回收站",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private async void BatchManagementButton_OnClick(object sender, RoutedEventArgs e)

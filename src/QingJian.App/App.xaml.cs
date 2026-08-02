@@ -18,6 +18,7 @@ public partial class App : Application
     private TodoWidgetCoordinator? _todoWidgetCoordinator;
     private SettingsWindow? _settingsWindow;
     private FolderManagementWindow? _folderManagementWindow;
+    private RecycleBinWindow? _recycleBinWindow;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -77,6 +78,8 @@ public partial class App : Application
         window.SettingsRequested += (_, _) => ShowSettingsWindow(window, settingsCoordinator);
         window.FolderManagementRequested += async (_, _) =>
             await ShowFolderManagementWindowAsync(window, viewModel, folderService);
+        window.RecycleBinRequested += () =>
+            ShowRecycleBinWindowAsync(window, viewModel, noteService);
 
         window.SourceInitialized += (_, _) =>
         {
@@ -177,6 +180,35 @@ public partial class App : Application
         finally
         {
             _folderManagementWindow = null;
+        }
+    }
+
+    private async Task ShowRecycleBinWindowAsync(
+        MainWindow owner,
+        MainViewModel mainViewModel,
+        INoteService noteService)
+    {
+        if (_recycleBinWindow is { IsVisible: true })
+        {
+            _recycleBinWindow.Activate();
+            return;
+        }
+
+        try
+        {
+            var recycleBinViewModel = new RecycleBinViewModel(noteService);
+            _recycleBinWindow = new RecycleBinWindow(recycleBinViewModel)
+            {
+                Owner = owner
+            };
+            _recycleBinWindow.ShowDialog();
+
+            await mainViewModel.ReloadActiveNotesAsync();
+            await mainViewModel.RefreshFoldersAsync();
+        }
+        finally
+        {
+            _recycleBinWindow = null;
         }
     }
 
