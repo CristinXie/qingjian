@@ -3,10 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:QingJian.App.Views"
         Title="回收站"
-        Width="620"
-        Height="520"
-        MinWidth="480"
-        MinHeight="360"
+        Width="860"
+        Height="560"
+        MinWidth="680"
+        MinHeight="400"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource AppBackgroundBrush}">
     <Window.Resources>
@@ -25,12 +25,24 @@
                    Margin="0,0,0,16" />
 
         <Grid Grid.Row="1">
-            <ScrollViewer VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled">
-                <ItemsControl x:Name="DeletedNotesItemsControl"
-                              ItemsSource="{Binding DeletedNotes}">
-                    <ItemsControl.Style>
-                        <Style TargetType="ItemsControl">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="360" />
+                <ColumnDefinition Width="24" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Grid>
+                <ListBox x:Name="DeletedNotesListBox"
+                         ItemsSource="{Binding DeletedNotes}"
+                         SelectedItem="{Binding SelectedNote, Mode=TwoWay}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Padding="0"
+                         HorizontalContentAlignment="Stretch"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListBox.Style>
+                        <Style TargetType="ListBox">
                             <Setter Property="Visibility" Value="Visible" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsEmpty}" Value="True">
@@ -38,15 +50,21 @@
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </ItemsControl.Style>
-                    <ItemsControl.ItemTemplate>
+                    </ListBox.Style>
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Margin" Value="0,0,0,8" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
                         <DataTemplate>
                             <Border Background="{StaticResource PanelBackgroundBrush}"
                                     BorderBrush="{StaticResource BorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="8"
-                                    Padding="12,8"
-                                    Margin="0,0,0,8">
+                                    Padding="12,8">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -59,43 +77,19 @@
                                             <RowDefinition Height="24" />
                                             <RowDefinition Height="24" />
                                         </Grid.RowDefinitions>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
 
                                         <TextBlock Text="{Binding Title}"
                                                    FontWeight="SemiBold"
                                                    VerticalAlignment="Center"
                                                    TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="1"
-                                                   FontFamily="Segoe MDL2 Assets"
-                                                   FontSize="14"
-                                                   VerticalAlignment="Center"
-                                                   Margin="8,0,0,0">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Text" Value="&#xE734;" />
-                                                    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsFavorite}" Value="True">
-                                                            <Setter Property="Text" Value="&#xE735;" />
-                                                            <Setter Property="Foreground" Value="#F5C542" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
 
                                         <TextBlock Grid.Row="1"
-                                                   Grid.ColumnSpan="2"
                                                    Text="{Binding UpdatedAt, Converter={StaticResource NoteUpdatedAtDisplayConverter}}"
                                                    Foreground="{StaticResource MutedTextBrush}"
                                                    FontSize="11"
                                                    VerticalAlignment="Center" />
 
                                         <StackPanel Grid.Row="2"
-                                                    Grid.ColumnSpan="2"
                                                     Orientation="Horizontal"
                                                     VerticalAlignment="Center">
                                             <TextBlock Text="&#xE8B7;"
@@ -137,26 +131,62 @@
                                 </Grid>
                             </Border>
                         </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+                    </ListBox.ItemTemplate>
+                </ListBox>
 
-            <TextBlock x:Name="RecycleBinEmptyTextBlock"
-                       Text="近30天没有被删除的便签"
-                       Foreground="{StaticResource MutedTextBrush}"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="Visibility" Value="Collapsed" />
+                <TextBlock x:Name="RecycleBinEmptyTextBlock"
+                           Text="近30天没有被删除的便签"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+
+            <Grid Grid.Column="2">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Visible" />
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsEmpty}" Value="True">
-                                <Setter Property="Visibility" Value="Visible" />
+                            <DataTrigger Binding="{Binding SelectedNote}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
-                </TextBlock.Style>
-            </TextBlock>
+                </Grid.Style>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="16" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBlock x:Name="NotePreviewTitle"
+                           Text="{Binding SelectedNote.Title}"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBox x:Name="NotePreviewContent"
+                         Grid.Row="2"
+                         Text="{Binding SelectedNote.Content}"
+                         IsReadOnly="True"
+                         IsReadOnlyCaretVisible="False"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Padding="0" />
+            </Grid>
         </Grid>
     </Grid>
 </Window>

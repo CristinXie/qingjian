@@ -6,16 +6,19 @@ namespace QingJian.App.Tests.Views;
 public sealed class RecycleBinWindowXamlTests
 {
     [Fact]
-    public void Window_ShowsThreeLineCardsAndImmediateLifecycleIconButtons()
+    public void Window_ShowsSelectableCardsReadOnlyPreviewAndImmediateLifecycleIconButtons()
     {
         var xaml = XDocument.Load(FindPath("RecycleBinWindow.xaml"));
-        var items = FindNamedElement(xaml, "ItemsControl", "DeletedNotesItemsControl");
+        var items = FindNamedElement(xaml, "ListBox", "DeletedNotesListBox");
         var restore = FindNamedElement(xaml, "Button", "RestoreNoteButton");
         var delete = FindNamedElement(xaml, "Button", "PermanentlyDeleteNoteButton");
         var empty = FindNamedElement(xaml, "TextBlock", "RecycleBinEmptyTextBlock");
+        var previewTitle = FindNamedElement(xaml, "TextBlock", "NotePreviewTitle");
+        var previewContent = FindNamedElement(xaml, "TextBox", "NotePreviewContent");
 
         Assert.Equal("回收站", (string?)xaml.Root?.Attribute("Title"));
         Assert.Equal("{Binding DeletedNotes}", (string?)items.Attribute("ItemsSource"));
+        Assert.Equal("{Binding SelectedNote, Mode=TwoWay}", (string?)items.Attribute("SelectedItem"));
         Assert.Contains(items.Descendants(), element =>
             element.Name.LocalName == "TextBlock"
             && (string?)element.Attribute("Text") == "{Binding Title}");
@@ -25,25 +28,13 @@ public sealed class RecycleBinWindowXamlTests
         Assert.Contains(items.Descendants(), element =>
             element.Name.LocalName == "TextBlock"
             && (string?)element.Attribute("Text") == "{Binding FolderName}");
-        Assert.Contains(items.Descendants(), element =>
-            element.Name.LocalName == "DataTrigger"
-            && (string?)element.Attribute("Binding") == "{Binding IsFavorite}");
-        var favoriteIcon = items.Descendants().Single(element =>
-            element.Name.LocalName == "TextBlock"
-            && element.Descendants().Any(trigger =>
-                trigger.Name.LocalName == "DataTrigger"
-                && (string?)trigger.Attribute("Binding") == "{Binding IsFavorite}"));
-        Assert.Null(favoriteIcon.Attribute("Text"));
-        Assert.Contains(favoriteIcon.Descendants(), element =>
-            element.Name.LocalName == "Setter"
-            && (string?)element.Attribute("Property") == "Text"
-            && (string?)element.Attribute("Value") == "\uE734");
-        Assert.Contains(favoriteIcon.Descendants(), element =>
-            element.Name.LocalName == "DataTrigger"
-            && element.Descendants().Any(setter =>
-                setter.Name.LocalName == "Setter"
-                && (string?)setter.Attribute("Property") == "Text"
-                && (string?)setter.Attribute("Value") == "\uE735"));
+        Assert.DoesNotContain("IsFavorite", items.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("\uE734", items.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("\uE735", items.ToString(), StringComparison.Ordinal);
+        Assert.Equal("{Binding SelectedNote.Title}", (string?)previewTitle.Attribute("Text"));
+        Assert.Equal("{Binding SelectedNote.Content}", (string?)previewContent.Attribute("Text"));
+        Assert.Equal("True", (string?)previewContent.Attribute("IsReadOnly"));
+        Assert.Equal("Wrap", (string?)previewContent.Attribute("TextWrapping"));
         Assert.Equal("{StaticResource IconButtonStyle}", (string?)restore.Attribute("Style"));
         Assert.Equal("恢复", (string?)restore.Attribute("ToolTip"));
         Assert.Equal("RestoreNoteButton_OnClick", (string?)restore.Attribute("Click"));

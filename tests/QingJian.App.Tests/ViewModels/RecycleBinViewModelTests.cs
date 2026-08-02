@@ -21,6 +21,7 @@ public sealed class RecycleBinViewModelTests
 
         Assert.Equal(new[] { "first", "second" }, viewModel.DeletedNotes.Select(note => note.Id));
         Assert.False(viewModel.IsEmpty);
+        Assert.Same(first, viewModel.SelectedNote);
     }
 
     [Fact]
@@ -66,6 +67,42 @@ public sealed class RecycleBinViewModelTests
 
         Assert.Empty(viewModel.DeletedNotes);
         Assert.Equal(new[] { "note" }, service.PermanentlyDeletedIds);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RemovingSelectedNote_SelectsAdjacentCard(bool restore)
+    {
+        var first = CreateDeletedNote("first");
+        var second = CreateDeletedNote("second");
+        var third = CreateDeletedNote("third");
+        var viewModel = new RecycleBinViewModel(new TestNoteService(first, second, third));
+        await viewModel.LoadAsync();
+        viewModel.SelectedNote = second;
+
+        if (restore)
+        {
+            await viewModel.RestoreAsync(second);
+        }
+        else
+        {
+            await viewModel.PermanentlyDeleteAsync(second);
+        }
+
+        Assert.Same(third, viewModel.SelectedNote);
+    }
+
+    [Fact]
+    public async Task RemovingLastCard_ClearsSelection()
+    {
+        var note = CreateDeletedNote("note");
+        var viewModel = new RecycleBinViewModel(new TestNoteService(note));
+        await viewModel.LoadAsync();
+
+        await viewModel.RestoreAsync(note);
+
+        Assert.Null(viewModel.SelectedNote);
     }
 
     private static Note CreateDeletedNote(string id)

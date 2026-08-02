@@ -7,6 +7,7 @@ namespace QingJian.App.ViewModels;
 public sealed class RecycleBinViewModel : ViewModelBase
 {
     private readonly INoteService _noteService;
+    private Note? _selectedNote;
 
     public RecycleBinViewModel(INoteService noteService)
     {
@@ -14,6 +15,12 @@ public sealed class RecycleBinViewModel : ViewModelBase
     }
 
     public ObservableCollection<Note> DeletedNotes { get; } = new();
+
+    public Note? SelectedNote
+    {
+        get => _selectedNote;
+        set => SetField(ref _selectedNote, value);
+    }
 
     public bool IsEmpty => DeletedNotes.Count == 0;
 
@@ -26,14 +33,14 @@ public sealed class RecycleBinViewModel : ViewModelBase
             DeletedNotes.Add(note);
         }
 
+        SelectedNote = DeletedNotes.FirstOrDefault();
         OnPropertyChanged(nameof(IsEmpty));
     }
 
     public async Task RestoreAsync(Note note, CancellationToken cancellationToken = default)
     {
         await _noteService.RestoreNoteAsync(note, cancellationToken);
-        DeletedNotes.Remove(note);
-        OnPropertyChanged(nameof(IsEmpty));
+        RemoveNote(note);
     }
 
     public async Task PermanentlyDeleteAsync(
@@ -41,7 +48,26 @@ public sealed class RecycleBinViewModel : ViewModelBase
         CancellationToken cancellationToken = default)
     {
         await _noteService.PermanentlyDeleteNoteAsync(note, cancellationToken);
-        DeletedNotes.Remove(note);
+        RemoveNote(note);
+    }
+
+    private void RemoveNote(Note note)
+    {
+        var index = DeletedNotes.IndexOf(note);
+        var wasSelected = ReferenceEquals(SelectedNote, note);
+        if (index < 0)
+        {
+            return;
+        }
+
+        DeletedNotes.RemoveAt(index);
+        if (wasSelected)
+        {
+            SelectedNote = DeletedNotes.Count == 0
+                ? null
+                : DeletedNotes[Math.Min(index, DeletedNotes.Count - 1)];
+        }
+
         OnPropertyChanged(nameof(IsEmpty));
     }
 }
