@@ -17,6 +17,7 @@ public sealed class SettingsCoordinator
     private readonly IAppStorageInfoService _storageService;
     private readonly IAppRuntimeInfoProvider _runtimeInfoProvider;
     private readonly Func<string, Task> _applyEditorMode;
+    private readonly Func<WindowBehaviorPreferences, Task> _applyWindowBehavior;
 
     public SettingsCoordinator(
         AppSettingsService settingsService,
@@ -26,6 +27,27 @@ public sealed class SettingsCoordinator
         IAppStorageInfoService storageService,
         IAppRuntimeInfoProvider runtimeInfoProvider,
         Func<string, Task> applyEditorMode)
+        : this(
+            settingsService,
+            startupService,
+            hotkeyCoordinator,
+            todoWidgetCoordinator,
+            storageService,
+            runtimeInfoProvider,
+            applyEditorMode,
+            _ => Task.CompletedTask)
+    {
+    }
+
+    public SettingsCoordinator(
+        AppSettingsService settingsService,
+        IStartupRegistrationService startupService,
+        QuickNoteHotkeyCoordinator hotkeyCoordinator,
+        TodoWidgetCoordinator todoWidgetCoordinator,
+        IAppStorageInfoService storageService,
+        IAppRuntimeInfoProvider runtimeInfoProvider,
+        Func<string, Task> applyEditorMode,
+        Func<WindowBehaviorPreferences, Task> applyWindowBehavior)
     {
         _settingsService = settingsService;
         _startupService = startupService;
@@ -34,6 +56,7 @@ public sealed class SettingsCoordinator
         _storageService = storageService;
         _runtimeInfoProvider = runtimeInfoProvider;
         _applyEditorMode = applyEditorMode;
+        _applyWindowBehavior = applyWindowBehavior;
     }
 
     public async Task<SettingsState> LoadAsync(CancellationToken cancellationToken = default)
@@ -75,6 +98,7 @@ public sealed class SettingsCoordinator
             ? oldSettings.QuickNoteHotkey.Normalize() with { IsEnabled = false }
             : request.QuickNoteHotkey.Normalize();
         var todo = TodoWidgetPreferencesMerger.Merge(oldTodo, request.TodoWidget);
+        var windowBehavior = request.WindowBehavior ?? oldSettings.WindowBehavior;
         var hotkeyTouched = false;
         var startupTouched = false;
         var settingsTouched = false;
@@ -99,10 +123,12 @@ public sealed class SettingsCoordinator
                 {
                     EditorMode = editorMode,
                     QuickNoteHotkey = hotkey,
-                    TodoWidget = todo
+                    TodoWidget = todo,
+                    WindowBehavior = windowBehavior
                 },
                 cancellationToken);
 
+            await _applyWindowBehavior(windowBehavior);
             await _applyEditorMode(editorMode);
             await _todoWidgetCoordinator.ApplyRuntimePreferencesAsync(todo, cancellationToken);
             return SettingsSaveResult.Success();
@@ -142,6 +168,7 @@ public sealed class SettingsCoordinator
         {
             failed |= !await TryRollbackAsync(() => _todoWidgetCoordinator.ApplyRuntimePreferencesAsync(oldTodo));
             failed |= !await TryRollbackAsync(() => _applyEditorMode(oldSettings.EditorMode));
+            failed |= !await TryRollbackAsync(() => _applyWindowBehavior(oldSettings.WindowBehavior));
             failed |= !await TryRollbackAsync(() => _settingsService.SaveAsync(oldSettings));
         }
 

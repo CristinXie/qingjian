@@ -123,7 +123,22 @@
                         <TextBlock Text="常规" Style="{StaticResource SectionHeadingStyle}" />
                         <CheckBox x:Name="LaunchAtStartupCheckBox"
                                   Content="开机自动启动 QingJian"
-                                  FontSize="14" />
+                                  FontSize="14"
+                                  Checked="LaunchAtStartupCheckBox_OnChanged"
+                                  Unchecked="LaunchAtStartupCheckBox_OnChanged" />
+                        <CheckBox x:Name="MinimizeToTrayCheckBox"
+                                  Content="最小化主窗口时隐藏到系统托盘"
+                                  FontSize="14"
+                                  Margin="0,16,0,0" />
+                        <CheckBox x:Name="CloseToTrayCheckBox"
+                                  Content="关闭主窗口时隐藏到系统托盘"
+                                  FontSize="14"
+                                  Margin="0,16,0,0" />
+                        <CheckBox x:Name="StartMinimizedCheckBox"
+                                  Content="开机启动时隐藏到系统托盘"
+                                  FontSize="14"
+                                  Margin="0,16,0,0"
+                                  IsEnabled="False" />
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

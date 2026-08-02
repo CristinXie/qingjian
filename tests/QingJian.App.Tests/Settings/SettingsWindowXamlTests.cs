@@ -49,6 +49,9 @@ public sealed class SettingsWindowXamlTests
         var expected = new Dictionary<string, string>
         {
             ["LaunchAtStartupCheckBox"] = "CheckBox",
+            ["MinimizeToTrayCheckBox"] = "CheckBox",
+            ["CloseToTrayCheckBox"] = "CheckBox",
+            ["StartMinimizedCheckBox"] = "CheckBox",
             ["WysiwygModeRadioButton"] = "RadioButton",
             ["MarkdownModeRadioButton"] = "RadioButton",
             ["HotkeyEnabledCheckBox"] = "CheckBox",
@@ -77,6 +80,16 @@ public sealed class SettingsWindowXamlTests
             var element = FindNamedElement(xaml, pair.Key);
             Assert.Equal(pair.Value, element.Name.LocalName);
         }
+
+        Assert.Equal(
+            "最小化主窗口时隐藏到系统托盘",
+            (string?)FindNamedElement(xaml, "MinimizeToTrayCheckBox").Attribute("Content"));
+        Assert.Equal(
+            "关闭主窗口时隐藏到系统托盘",
+            (string?)FindNamedElement(xaml, "CloseToTrayCheckBox").Attribute("Content"));
+        var startMinimized = FindNamedElement(xaml, "StartMinimizedCheckBox");
+        Assert.Equal("开机启动时隐藏到系统托盘", (string?)startMinimized.Attribute("Content"));
+        Assert.Equal("False", (string?)startMinimized.Attribute("IsEnabled"));
     }
 
     [Fact]

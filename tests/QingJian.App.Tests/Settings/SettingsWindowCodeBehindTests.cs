@@ -20,6 +20,10 @@ public sealed class SettingsWindowCodeBehindTests
         Assert.Contains("DialogResult = true", source, StringComparison.Ordinal);
         Assert.Contains("_coordinator.OpenDataFolder()", source, StringComparison.Ordinal);
         Assert.Contains("FormatBytes", source, StringComparison.Ordinal);
+        Assert.Contains("LaunchAtStartupCheckBox_OnChanged", source, StringComparison.Ordinal);
+        Assert.Contains("UpdateStartMinimizedEnabledState", source, StringComparison.Ordinal);
+        Assert.Contains("state.AppSettings.WindowBehavior", source, StringComparison.Ordinal);
+        Assert.Contains("new WindowBehaviorPreferences", source, StringComparison.Ordinal);
     }
 
     private static string FindSettingsWindowCodeBehindPath()

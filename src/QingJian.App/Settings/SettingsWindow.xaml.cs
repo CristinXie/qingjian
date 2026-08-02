@@ -42,6 +42,7 @@ public partial class SettingsWindow : Window
     private void LoadState(SettingsState state)
     {
         _draft.LaunchAtStartup = state.LaunchAtStartup;
+        _draft.WindowBehavior = state.AppSettings.WindowBehavior;
         _draft.EditorMode = state.AppSettings.EditorMode;
         _draft.QuickNoteHotkey = state.AppSettings.QuickNoteHotkey;
         _draft.TodoVisible = state.TodoWidget.IsVisible;
@@ -50,6 +51,10 @@ public partial class SettingsWindow : Window
         _draft.TodoLocked = state.TodoWidget.IsLocked;
 
         LaunchAtStartupCheckBox.IsChecked = _draft.LaunchAtStartup;
+        MinimizeToTrayCheckBox.IsChecked = _draft.WindowBehavior.MinimizeToTray;
+        CloseToTrayCheckBox.IsChecked = _draft.WindowBehavior.CloseToTray;
+        StartMinimizedCheckBox.IsChecked = _draft.WindowBehavior.StartMinimized;
+        UpdateStartMinimizedEnabledState();
         WysiwygModeRadioButton.IsChecked = _draft.EditorMode == AppSettings.DefaultEditorMode;
         MarkdownModeRadioButton.IsChecked = _draft.EditorMode == AppSettings.MarkdownEditorMode;
         HotkeyEnabledCheckBox.IsChecked = _draft.QuickNoteHotkey.IsEnabled;
@@ -82,6 +87,19 @@ public partial class SettingsWindow : Window
         }
 
         HotkeyTextBox.IsEnabled = HotkeyEnabledCheckBox.IsChecked == true;
+    }
+
+    private void LaunchAtStartupCheckBox_OnChanged(object sender, RoutedEventArgs e)
+    {
+        UpdateStartMinimizedEnabledState();
+    }
+
+    private void UpdateStartMinimizedEnabledState()
+    {
+        if (StartMinimizedCheckBox is not null)
+        {
+            StartMinimizedCheckBox.IsEnabled = LaunchAtStartupCheckBox.IsChecked == true;
+        }
     }
 
     private void HotkeyTextBox_OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -221,7 +239,11 @@ public partial class SettingsWindow : Window
                     GetSelectedTodoMode(),
                     TodoOpacitySlider.Value,
                     TodoLockedCheckBox.IsChecked == true,
-                    _draft.ResetTodoPositionAndAppearance)));
+                    _draft.ResetTodoPositionAndAppearance),
+                new WindowBehaviorPreferences(
+                    MinimizeToTrayCheckBox.IsChecked == true,
+                    CloseToTrayCheckBox.IsChecked == true,
+                    StartMinimizedCheckBox.IsChecked == true)));
             if (!result.Succeeded)
             {
                 ShowError(result.ErrorMessage ?? "保存设置失败。");

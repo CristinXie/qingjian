@@ -60,6 +60,8 @@ public sealed class SettingsCoordinatorTests : IDisposable
         Assert.True(context.Startup.IsEnabled);
         Assert.Equal(AppSettings.MarkdownEditorMode, persisted.EditorMode);
         Assert.Equal(request.QuickNoteHotkey, persisted.QuickNoteHotkey);
+        Assert.Equal(request.WindowBehavior, persisted.WindowBehavior);
+        Assert.Equal(request.WindowBehavior, context.LastAppliedWindowBehavior);
         Assert.Equal(AppSettings.MarkdownEditorMode, context.LastAppliedEditorMode);
         Assert.Equal(TodoWidgetMode.Today, runtimeTodo.Mode);
         Assert.Equal(0.52, runtimeTodo.Opacity);
@@ -99,6 +101,7 @@ public sealed class SettingsCoordinatorTests : IDisposable
         Assert.Equal(QuickNoteHotkeyPreferences.Default, context.HotkeyCoordinator.CurrentPreferences);
         Assert.Equal(oldTodo, context.TodoCoordinator.CapturePreferences());
         Assert.Equal(AppSettings.DefaultEditorMode, context.LastAppliedEditorMode);
+        Assert.Equal(WindowBehaviorPreferences.Default, context.LastAppliedWindowBehavior);
     }
 
     [Fact]
@@ -155,6 +158,11 @@ public sealed class SettingsCoordinatorTests : IDisposable
 
                 context.LastAppliedEditorMode = mode;
                 return Task.CompletedTask;
+            },
+            preferences =>
+            {
+                context.LastAppliedWindowBehavior = preferences;
+                return Task.CompletedTask;
             });
         return context;
     }
@@ -170,7 +178,11 @@ public sealed class SettingsCoordinatorTests : IDisposable
                 Mode: TodoWidgetMode.Today,
                 Opacity: 0.52,
                 IsLocked: true,
-                ResetPositionAndAppearance: false));
+                ResetPositionAndAppearance: false),
+            WindowBehavior: new WindowBehaviorPreferences(
+                MinimizeToTray: false,
+                CloseToTray: true,
+                StartMinimized: true));
     }
 
     public void Dispose()
@@ -206,6 +218,8 @@ public sealed class SettingsCoordinatorTests : IDisposable
         public SettingsCoordinator Coordinator { get; set; } = null!;
 
         public string? LastAppliedEditorMode { get; set; }
+
+        public WindowBehaviorPreferences? LastAppliedWindowBehavior { get; set; }
     }
 
     private sealed class FakeStartupService : IStartupRegistrationService
