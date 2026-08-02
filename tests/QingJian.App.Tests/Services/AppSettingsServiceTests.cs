@@ -1,5 +1,6 @@
 using QingJian.App.Services;
 using QingJian.App.Hotkeys;
+using QingJian.App.Settings;
 using Xunit;
 
 namespace QingJian.App.Tests.Services;
@@ -57,6 +58,22 @@ public sealed class AppSettingsServiceTests : IDisposable
         var settings = await service.LoadAsync();
 
         Assert.Equal(QuickNoteHotkeyPreferences.Default, settings.QuickNoteHotkey);
+        Assert.Equal(WindowBehaviorPreferences.Default, settings.WindowBehavior);
+    }
+
+    [Fact]
+    public async Task SaveAsync_RoundTripsWindowBehaviorPreferences()
+    {
+        var service = new AppSettingsService(_settingsFolder);
+        var preferences = new WindowBehaviorPreferences(
+            MinimizeToTray: false,
+            CloseToTray: true,
+            StartMinimized: true);
+
+        await service.SaveAsync(AppSettings.Default with { WindowBehavior = preferences });
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(preferences, loaded.WindowBehavior);
     }
 
     [Fact]

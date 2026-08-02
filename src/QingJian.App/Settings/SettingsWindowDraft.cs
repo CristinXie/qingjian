@@ -8,6 +8,8 @@ public sealed class SettingsWindowDraft
 {
     public bool LaunchAtStartup { get; set; }
 
+    public WindowBehaviorPreferences WindowBehavior { get; set; } = WindowBehaviorPreferences.Default;
+
     public string EditorMode { get; set; } = AppSettings.DefaultEditorMode;
 
     public QuickNoteHotkeyPreferences QuickNoteHotkey { get; set; } = QuickNoteHotkeyPreferences.Default;

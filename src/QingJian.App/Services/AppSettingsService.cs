@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using QingJian.App.Hotkeys;
+using QingJian.App.Settings;
 using QingJian.App.TodoWidgets;
 
 namespace QingJian.App.Services;
@@ -14,17 +15,20 @@ public sealed record AppSettings
     public static AppSettings Default { get; } = new(
         DefaultEditorMode,
         TodoWidgetPreferences.Default,
-        QuickNoteHotkeyPreferences.Default);
+        QuickNoteHotkeyPreferences.Default,
+        WindowBehaviorPreferences.Default);
 
     [JsonConstructor]
     public AppSettings(
         string? EditorMode,
         TodoWidgetPreferences? TodoWidget,
-        QuickNoteHotkeyPreferences? QuickNoteHotkey)
+        QuickNoteHotkeyPreferences? QuickNoteHotkey,
+        WindowBehaviorPreferences? WindowBehavior = null)
     {
         this.EditorMode = EditorMode ?? DefaultEditorMode;
         this.TodoWidget = TodoWidget ?? TodoWidgetPreferences.Default;
         this.QuickNoteHotkey = QuickNoteHotkey ?? QuickNoteHotkeyPreferences.Default;
+        this.WindowBehavior = WindowBehavior ?? WindowBehaviorPreferences.Default;
     }
 
     public AppSettings(string EditorMode, TodoWidgetPreferences TodoWidget)
@@ -43,6 +47,8 @@ public sealed record AppSettings
 
     public QuickNoteHotkeyPreferences QuickNoteHotkey { get; init; }
 
+    public WindowBehaviorPreferences WindowBehavior { get; init; }
+
     public AppSettings Normalize()
     {
         var editorMode = EditorMode is DefaultEditorMode or MarkdownEditorMode
@@ -53,7 +59,8 @@ public sealed record AppSettings
         {
             EditorMode = editorMode,
             TodoWidget = (TodoWidget ?? TodoWidgetPreferences.Default).Normalize(),
-            QuickNoteHotkey = (QuickNoteHotkey ?? QuickNoteHotkeyPreferences.Default).Normalize()
+            QuickNoteHotkey = (QuickNoteHotkey ?? QuickNoteHotkeyPreferences.Default).Normalize(),
+            WindowBehavior = WindowBehavior ?? WindowBehaviorPreferences.Default
         };
     }
 }
