@@ -54,6 +54,10 @@ public sealed class InstallerDefinitionTests
         Assert.Contains("IncludeNativeLibrariesForSelfExtract=true", source);
         Assert.Contains("IncludeAllContentForSelfExtract=true", source);
         Assert.Contains("LinkId=2124703", source);
+        Assert.Contains("tools.innosetup/6.7.3", source);
+        Assert.Contains("tools.innosetup.6.7.3.nupkg", source);
+        Assert.Contains("tools\\ISCC.exe", source);
+        Assert.Contains("F780898E402FF80612CC8D9FCB8C6E02932BD1CB4C900FFDAA31F9341CFB49F4", source);
         Assert.Contains("/DPublishDir=", source);
         Assert.Contains("/DWebView2Bootstrapper=", source);
         Assert.Contains("/DOutputDir=", source);

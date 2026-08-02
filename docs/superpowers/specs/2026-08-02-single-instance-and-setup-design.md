@@ -60,7 +60,7 @@ The existing `%LOCALAPPDATA%\QingJian\attachments` directory and editor asset lo
 
 ## Installer Design
 
-Inno Setup 6 compiles `installer/QingJian.iss`. A PowerShell build script performs the complete artifact pipeline:
+Inno Setup 6 compiles `installer/QingJian.iss`. The build script prefers an installed compiler and otherwise downloads the pinned `Tools.InnoSetup 6.7.3` NuGet package, verifies its approved SHA-256, and extracts the compiler under ignored build artifacts. A PowerShell build script performs the complete artifact pipeline:
 
 1. Publish `src/QingJian.App/QingJian.App.csproj` for `win-x64` in Release mode.
 2. Use a self-contained single-file host with native and content extraction enabled.
@@ -90,7 +90,7 @@ The app publish remains self-contained for .NET 8. WebView2 Runtime remains a Mi
 
 - A secondary instance exits even if activation notification fails, preserving the one-process guarantee.
 - WebView2 initialization failure continues to use the existing editor fallback UI.
-- The build script stops on restore, publish, download, or compiler failures and does not report an installer path unless the expected output exists.
+- The build script stops on restore, publish, compiler-package integrity, download, or compiler failures and does not report an installer path unless the expected output exists.
 - Installer WebView2 bootstrapper errors are surfaced by Setup and do not masquerade as a successful dependency installation.
 
 ## Testing

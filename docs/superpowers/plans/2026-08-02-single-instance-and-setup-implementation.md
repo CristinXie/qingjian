@@ -231,13 +231,9 @@ git commit -m "build: add QingJian setup pipeline"
 - Consumes: `scripts/build-installer.ps1`.
 - Produces: a verified PE Setup executable on the desktop.
 
-- [ ] **Step 1: Install Inno Setup Compiler when absent**
+- [ ] **Step 1: Resolve Inno Setup Compiler**
 
-```powershell
-winget install --id JRSoftware.InnoSetup -e --silent --accept-package-agreements --accept-source-agreements
-```
-
-Resolve `ISCC.exe` from `C:\Program Files (x86)\Inno Setup 6\ISCC.exe` or `C:\Program Files\Inno Setup 6\ISCC.exe`.
+Let `build-installer.ps1` resolve an installed `ISCC.exe` first. When absent, it downloads `Tools.InnoSetup 6.7.3` from NuGet, requires SHA-256 `F780898E402FF80612CC8D9FCB8C6E02932BD1CB4C900FFDAA31F9341CFB49F4`, and extracts the compiler under ignored `artifacts/tools`.
 
 - [ ] **Step 2: Run complete source verification sequentially**
 

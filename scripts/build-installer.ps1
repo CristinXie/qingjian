@@ -28,9 +28,33 @@ if ([string]::IsNullOrWhiteSpace($InnoCompilerPath)) {
         Select-Object -First 1
 }
 
-if ([string]::IsNullOrWhiteSpace($InnoCompilerPath) -or
-    -not (Test-Path -LiteralPath $InnoCompilerPath)) {
-    throw "Inno Setup 6 compiler was not found. Install JRSoftware.InnoSetup with winget."
+if ([string]::IsNullOrWhiteSpace($InnoCompilerPath)) {
+    $innoToolDirectory = Join-Path $artifactsDirectory "tools\innosetup-6.7.3"
+    $localCompilerPath = Join-Path $innoToolDirectory "tools\ISCC.exe"
+    if (-not (Test-Path -LiteralPath $localCompilerPath)) {
+        $innoPackagePath = Join-Path $cacheDirectory "tools.innosetup.6.7.3.nupkg"
+        Invoke-WebRequest `
+            -Uri "https://api.nuget.org/v3-flatcontainer/tools.innosetup/6.7.3/tools.innosetup.6.7.3.nupkg" `
+            -OutFile $innoPackagePath `
+            -UseBasicParsing
+
+        $expectedPackageHash = "F780898E402FF80612CC8D9FCB8C6E02932BD1CB4C900FFDAA31F9341CFB49F4"
+        $actualPackageHash = (Get-FileHash -LiteralPath $innoPackagePath -Algorithm SHA256).Hash
+        if ($actualPackageHash -ne $expectedPackageHash) {
+            throw "Downloaded Inno Setup package hash does not match the approved package."
+        }
+
+        $innoZipPath = Join-Path $cacheDirectory "tools.innosetup.6.7.3.zip"
+        Copy-Item -LiteralPath $innoPackagePath -Destination $innoZipPath -Force
+        New-Item -ItemType Directory -Force -Path $innoToolDirectory | Out-Null
+        Expand-Archive -LiteralPath $innoZipPath -DestinationPath $innoToolDirectory -Force
+    }
+
+    $InnoCompilerPath = $localCompilerPath
+}
+
+if (-not (Test-Path -LiteralPath $InnoCompilerPath)) {
+    throw "Inno Setup 6 compiler was not found: $InnoCompilerPath"
 }
 
 if ([string]::IsNullOrWhiteSpace($WebView2BootstrapperPath)) {
