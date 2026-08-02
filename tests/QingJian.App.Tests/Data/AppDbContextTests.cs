@@ -19,6 +19,7 @@ public sealed class AppDbContextTests
             .Options;
 
         var favoritedAt = new DateTime(2026, 7, 8, 10, 5, 0, DateTimeKind.Utc);
+        var deletedAt = favoritedAt.AddMinutes(5);
 
         await using (var db = new AppDbContext(options))
         {
@@ -33,7 +34,8 @@ public sealed class AppDbContextTests
                 IsFavorite = true,
                 FavoritedAt = favoritedAt,
                 FolderName = "项目",
-                IsDeleted = false
+                IsDeleted = true,
+                DeletedAt = deletedAt
             });
             await db.SaveChangesAsync();
         }
@@ -44,10 +46,14 @@ public sealed class AppDbContextTests
         Assert.Equal("note-1", saved.Id);
         Assert.Equal("First note", saved.Title);
         Assert.Equal("Hello", saved.Content);
+        Assert.Equal(DateTimeKind.Utc, saved.CreatedAt.Kind);
+        Assert.Equal(DateTimeKind.Utc, saved.UpdatedAt.Kind);
         Assert.True(saved.IsFavorite);
         Assert.Equal(favoritedAt, saved.FavoritedAt);
+        Assert.Equal(DateTimeKind.Utc, saved.FavoritedAt?.Kind);
         Assert.Equal("项目", saved.FolderName);
-        Assert.False(saved.IsDeleted);
-        Assert.Null(saved.DeletedAt);
+        Assert.True(saved.IsDeleted);
+        Assert.Equal(deletedAt, saved.DeletedAt);
+        Assert.Equal(DateTimeKind.Utc, saved.DeletedAt?.Kind);
     }
 }

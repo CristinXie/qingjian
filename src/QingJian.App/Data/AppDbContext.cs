@@ -1,10 +1,21 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using QingJian.App.Models;
 
 namespace QingJian.App.Data;
 
 public sealed class AppDbContext : DbContext
 {
+    private static readonly ValueConverter<DateTime, DateTime> UtcDateTimeConverter = new(
+        value => value,
+        value => DateTime.SpecifyKind(value, DateTimeKind.Utc));
+
+    private static readonly ValueConverter<DateTime?, DateTime?> NullableUtcDateTimeConverter = new(
+        value => value,
+        value => value.HasValue
+            ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+            : null);
+
     public AppDbContext(DbContextOptions<AppDbContext> options)
         : base(options)
     {
@@ -36,10 +47,12 @@ public sealed class AppDbContext : DbContext
                 .IsRequired();
 
             entity.Property(note => note.CreatedAt)
+                .HasConversion(UtcDateTimeConverter)
                 .HasColumnType("TEXT")
                 .IsRequired();
 
             entity.Property(note => note.UpdatedAt)
+                .HasConversion(UtcDateTimeConverter)
                 .HasColumnType("TEXT")
                 .IsRequired();
 
@@ -49,6 +62,7 @@ public sealed class AppDbContext : DbContext
                 .IsRequired();
 
             entity.Property(note => note.FavoritedAt)
+                .HasConversion(NullableUtcDateTimeConverter)
                 .HasColumnType("TEXT");
 
             entity.Property(note => note.FolderName)
@@ -62,6 +76,7 @@ public sealed class AppDbContext : DbContext
                 .IsRequired();
 
             entity.Property(note => note.DeletedAt)
+                .HasConversion(NullableUtcDateTimeConverter)
                 .HasColumnType("TEXT");
         });
 
