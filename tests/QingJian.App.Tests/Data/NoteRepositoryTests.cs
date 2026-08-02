@@ -238,8 +238,11 @@ public sealed class NoteRepositoryTests
         restore.FavoritedAt = updatedAt.AddHours(1);
         await repository.AddAsync(restore);
         await repository.AddAsync(CreateNote("purge", "Purge", updatedAt, false));
+        await repository.AddAsync(CreateNote("active", "Active", updatedAt.AddMinutes(1), false));
+        await repository.AddAsync(CreateNote("deleted-survivor", "Deleted survivor", updatedAt.AddMinutes(2), false));
         await repository.SoftDeleteAsync("restore", deletedAt);
         await repository.SoftDeleteAsync("purge", deletedAt);
+        await repository.SoftDeleteAsync("deleted-survivor", deletedAt.AddMinutes(1));
 
         await repository.RestoreAsync("restore");
         await repository.PermanentlyDeleteAsync("purge");
@@ -254,6 +257,12 @@ public sealed class NoteRepositoryTests
         Assert.True(restored.IsFavorite);
         Assert.Equal(updatedAt.AddHours(1), restored.FavoritedAt);
         Assert.False(await context.Notes.AnyAsync(note => note.Id == "purge"));
+        Assert.Equal(
+            updatedAt.AddMinutes(1),
+            (await context.Notes.SingleAsync(note => note.Id == "active")).UpdatedAt);
+        Assert.Equal(
+            updatedAt.AddMinutes(2),
+            (await context.Notes.SingleAsync(note => note.Id == "deleted-survivor")).UpdatedAt);
     }
 
     [Fact]

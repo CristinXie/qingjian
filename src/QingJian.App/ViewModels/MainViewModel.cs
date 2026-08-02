@@ -13,7 +13,10 @@ public sealed class MainViewModel : ViewModelBase
     private readonly IFolderService? _folderService;
     private readonly TimeSpan _autoSaveDelay;
     private readonly object _notesSynchronization = new();
+    private readonly object _editVersionSynchronization = new();
     private readonly BatchSelectionState _batchSelection = new();
+    private readonly Dictionary<string, long> _unsavedEditVersions = new(StringComparer.Ordinal);
+    private long _nextEditVersion;
     private CancellationTokenSource? _autoSaveCancellation;
     private Note? _selectedNote;
     private bool _isBusy;
@@ -441,6 +444,11 @@ public sealed class MainViewModel : ViewModelBase
             return Task.CompletedTask;
         }
 
+        if (!HasUnsavedEdits(SelectedNote))
+        {
+            return Task.CompletedTask;
+        }
+
         return SaveSelectedNoteAsync(cancellationToken);
     }
 
@@ -572,6 +580,7 @@ public sealed class MainViewModel : ViewModelBase
             return;
         }
 
+        MarkUnsaved(note);
         ScheduleAutoSave(note);
     }
 
@@ -681,13 +690,55 @@ public sealed class MainViewModel : ViewModelBase
 
     private async Task SaveNoteAsync(Note note, CancellationToken cancellationToken)
     {
+        if (!TryGetUnsavedEditVersion(note, out var editVersion))
+        {
+            return;
+        }
+
         await _noteService.SaveNoteAsync(note, cancellationToken);
+        MarkSavedIfCurrent(note, editVersion);
         if (ReferenceEquals(SelectedNote, note))
         {
             MoveSelectedNoteToTop();
         }
 
         RefreshNoteNavigation();
+    }
+
+    private void MarkUnsaved(Note note)
+    {
+        lock (_editVersionSynchronization)
+        {
+            _unsavedEditVersions[note.Id] = ++_nextEditVersion;
+        }
+    }
+
+    private bool HasUnsavedEdits(Note note)
+    {
+        lock (_editVersionSynchronization)
+        {
+            return _unsavedEditVersions.ContainsKey(note.Id);
+        }
+    }
+
+    private bool TryGetUnsavedEditVersion(Note note, out long editVersion)
+    {
+        lock (_editVersionSynchronization)
+        {
+            return _unsavedEditVersions.TryGetValue(note.Id, out editVersion);
+        }
+    }
+
+    private void MarkSavedIfCurrent(Note note, long savedEditVersion)
+    {
+        lock (_editVersionSynchronization)
+        {
+            if (_unsavedEditVersions.TryGetValue(note.Id, out var currentEditVersion)
+                && currentEditVersion == savedEditVersion)
+            {
+                _unsavedEditVersions.Remove(note.Id);
+            }
+        }
     }
 
     private void MoveSelectedNoteToTop()

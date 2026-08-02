@@ -139,6 +139,42 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task SaveSelectedNoteNowAsync_DoesNotSaveAnUnchangedNote()
+    {
+        var note = CreateNote("note-1", "Original");
+        var service = new InMemoryNoteService(note);
+        var viewModel = new MainViewModel(service);
+        await viewModel.LoadAsync();
+
+        await viewModel.SaveSelectedNoteNowAsync();
+
+        Assert.Empty(service.SavedIds);
+    }
+
+    [Fact]
+    public async Task SaveSelectedNoteNowAsync_KeepsNewerEditDirtyWhenItArrivesDuringSave()
+    {
+        var note = CreateNote("note-1", "Original");
+        var service = new InMemoryNoteService(note);
+        var viewModel = new MainViewModel(service);
+        await viewModel.LoadAsync();
+        var saveStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseSave = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        service.BlockNextSave(saveStarted, releaseSave);
+
+        viewModel.SelectedNote!.Content = "First edit";
+        var firstSave = viewModel.SaveSelectedNoteNowAsync();
+        await saveStarted.Task;
+        viewModel.SelectedNote.Content = "Second edit";
+        releaseSave.SetResult();
+        await firstSave;
+
+        await viewModel.SaveSelectedNoteNowAsync();
+
+        Assert.Equal(new[] { "note-1", "note-1" }, service.SavedIds);
+    }
+
+    [Fact]
     public async Task NotesView_GroupsAndSortsNotesByUpdatedAtDescending()
     {
         var now = new DateTime(2026, 7, 20, 12, 0, 0, DateTimeKind.Local);
@@ -295,6 +331,7 @@ public sealed class MainViewModelTests
         };
         var viewModel = new MainViewModel(service, TimeSpan.FromMilliseconds(700), () => now);
         await viewModel.LoadAsync();
+        viewModel.SelectedNote!.Content = "Changed";
 
         await viewModel.SaveSelectedNoteNowAsync();
 
@@ -679,6 +716,16 @@ public sealed class MainViewModelTests
 
         public Exception? BatchFavoriteException { get; init; }
 
+        private TaskCompletionSource? _saveStarted;
+
+        private TaskCompletionSource? _releaseSave;
+
+        public void BlockNextSave(TaskCompletionSource saveStarted, TaskCompletionSource releaseSave)
+        {
+            _saveStarted = saveStarted;
+            _releaseSave = releaseSave;
+        }
+
         public Task InitializeAsync(CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
@@ -710,15 +757,23 @@ public sealed class MainViewModelTests
             return Task.FromResult(note);
         }
 
-        public Task SaveNoteAsync(Note note, CancellationToken cancellationToken = default)
+        public async Task SaveNoteAsync(Note note, CancellationToken cancellationToken = default)
         {
             SavedIds.Add(note.Id);
+            var saveStarted = _saveStarted;
+            var releaseSave = _releaseSave;
+            _saveStarted = null;
+            _releaseSave = null;
+            saveStarted?.SetResult();
+            if (releaseSave is not null)
+            {
+                await releaseSave.Task;
+            }
+
             if (SavedUpdatedAt is DateTime updatedAt)
             {
                 note.UpdatedAt = updatedAt;
             }
-
-            return Task.CompletedTask;
         }
 
         public Task SetFavoriteAsync(Note note, bool isFavorite, CancellationToken cancellationToken = default)
