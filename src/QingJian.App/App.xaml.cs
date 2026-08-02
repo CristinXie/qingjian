@@ -3,6 +3,7 @@ using System.Windows;
 using Microsoft.EntityFrameworkCore;
 using QingJian.App.Data;
 using QingJian.App.Hotkeys;
+using QingJian.App.Lifecycle;
 using QingJian.App.QuickNotes;
 using QingJian.App.Services;
 using QingJian.App.Settings;
@@ -21,10 +22,20 @@ public partial class App : Application
     private FolderManagementWindow? _folderManagementWindow;
     private RecycleBinWindow? _recycleBinWindow;
     private ITrayIconService? _trayIconService;
+    private SingleInstanceCoordinator? _singleInstanceCoordinator;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        _singleInstanceCoordinator = SingleInstanceCoordinator.Create(
+            "QingJian.6DCE9EF8-0E5B-4705-86CB-4D397226C321");
+        if (!_singleInstanceCoordinator.IsPrimary)
+        {
+            _singleInstanceCoordinator.NotifyPrimary();
+            Shutdown();
+            return;
+        }
 
         var appDataFolder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -61,6 +72,8 @@ public partial class App : Application
             folderService,
             windowBehaviorCoordinator);
         MainWindow = window;
+        _singleInstanceCoordinator.StartListening(
+            () => Dispatcher.BeginInvoke(new Action(window.ShowFromTray)));
         var coordinator = new QuickNoteCoordinator(
             noteService,
             viewModel,
@@ -285,6 +298,7 @@ public partial class App : Application
 
         _hotkeyService?.Dispose();
         _trayIconService?.Dispose();
+        _singleInstanceCoordinator?.Dispose();
         base.OnExit(e);
     }
 }
