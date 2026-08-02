@@ -1,4 +1,6 @@
 using QingJian.App.Services;
+using QingJian.App.Hotkeys;
+using QingJian.App.Settings;
 using Xunit;
 
 namespace QingJian.App.Tests.Services;
@@ -44,6 +46,49 @@ public sealed class AppSettingsServiceTests : IDisposable
         var settings = await service.LoadAsync();
 
         Assert.Equal(AppSettings.DefaultEditorMode, settings.EditorMode);
+    }
+
+    [Fact]
+    public async Task LoadAsync_LoadsOldSettingsWithDefaultQuickNoteHotkey()
+    {
+        var settingsPath = Path.Combine(_settingsFolder, "settings.json");
+        await File.WriteAllTextAsync(settingsPath, """{"editorMode":"markdown"}""");
+        var service = new AppSettingsService(_settingsFolder);
+
+        var settings = await service.LoadAsync();
+
+        Assert.Equal(QuickNoteHotkeyPreferences.Default, settings.QuickNoteHotkey);
+        Assert.Equal(WindowBehaviorPreferences.Default, settings.WindowBehavior);
+    }
+
+    [Fact]
+    public async Task SaveAsync_RoundTripsWindowBehaviorPreferences()
+    {
+        var service = new AppSettingsService(_settingsFolder);
+        var preferences = new WindowBehaviorPreferences(
+            MinimizeToTray: false,
+            CloseToTray: true,
+            StartMinimized: true);
+
+        await service.SaveAsync(AppSettings.Default with { WindowBehavior = preferences });
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(preferences, loaded.WindowBehavior);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_PreservesDistinctConcurrentFieldUpdates()
+    {
+        var service = new AppSettingsService(_settingsFolder);
+        var hotkey = new QuickNoteHotkeyPreferences(true, HotkeyDefinition.ModControl, 0x4A);
+
+        await Task.WhenAll(
+            service.UpdateAsync(settings => settings with { EditorMode = AppSettings.MarkdownEditorMode }),
+            service.UpdateAsync(settings => settings with { QuickNoteHotkey = hotkey }));
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(AppSettings.MarkdownEditorMode, loaded.EditorMode);
+        Assert.Equal(hotkey, loaded.QuickNoteHotkey);
     }
 
     public void Dispose()

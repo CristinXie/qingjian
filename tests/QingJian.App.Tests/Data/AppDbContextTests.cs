@@ -18,6 +18,9 @@ public sealed class AppDbContextTests
             .UseSqlite(connection)
             .Options;
 
+        var favoritedAt = new DateTime(2026, 7, 8, 10, 5, 0, DateTimeKind.Utc);
+        var deletedAt = favoritedAt.AddMinutes(5);
+
         await using (var db = new AppDbContext(options))
         {
             await db.Database.EnsureCreatedAsync();
@@ -28,7 +31,11 @@ public sealed class AppDbContextTests
                 Content = "Hello",
                 CreatedAt = new DateTime(2026, 7, 8, 10, 0, 0, DateTimeKind.Utc),
                 UpdatedAt = new DateTime(2026, 7, 8, 10, 0, 0, DateTimeKind.Utc),
-                IsDeleted = false
+                IsFavorite = true,
+                FavoritedAt = favoritedAt,
+                FolderName = "项目",
+                IsDeleted = true,
+                DeletedAt = deletedAt
             });
             await db.SaveChangesAsync();
         }
@@ -39,6 +46,14 @@ public sealed class AppDbContextTests
         Assert.Equal("note-1", saved.Id);
         Assert.Equal("First note", saved.Title);
         Assert.Equal("Hello", saved.Content);
-        Assert.False(saved.IsDeleted);
+        Assert.Equal(DateTimeKind.Utc, saved.CreatedAt.Kind);
+        Assert.Equal(DateTimeKind.Utc, saved.UpdatedAt.Kind);
+        Assert.True(saved.IsFavorite);
+        Assert.Equal(favoritedAt, saved.FavoritedAt);
+        Assert.Equal(DateTimeKind.Utc, saved.FavoritedAt?.Kind);
+        Assert.Equal("项目", saved.FolderName);
+        Assert.True(saved.IsDeleted);
+        Assert.Equal(deletedAt, saved.DeletedAt);
+        Assert.Equal(DateTimeKind.Utc, saved.DeletedAt?.Kind);
     }
 }

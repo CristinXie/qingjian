@@ -84,4 +84,24 @@ public sealed class MarkdownEditorStateTests
         Assert.Equal("Original", markdown);
         Assert.Equal("Original", state.CurrentMarkdown);
     }
+
+    [Fact]
+    public void ShouldReloadSelection_ReturnsFalseForCurrentNote()
+    {
+        var state = new MarkdownEditorState();
+        state.BeginLoad("note-1", "Body");
+        state.EndLoad();
+
+        Assert.False(state.ShouldReloadSelection("note-1"));
+    }
+
+    [Fact]
+    public void ShouldReloadSelection_ReturnsTrueForDifferentNote()
+    {
+        var state = new MarkdownEditorState();
+        state.BeginLoad("note-1", "Body");
+        state.EndLoad();
+
+        Assert.True(state.ShouldReloadSelection("note-2"));
+    }
 }

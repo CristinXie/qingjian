@@ -1,16 +1,29 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using QingJian.App.Models;
 
 namespace QingJian.App.Data;
 
 public sealed class AppDbContext : DbContext
 {
+    private static readonly ValueConverter<DateTime, DateTime> UtcDateTimeConverter = new(
+        value => value,
+        value => DateTime.SpecifyKind(value, DateTimeKind.Utc));
+
+    private static readonly ValueConverter<DateTime?, DateTime?> NullableUtcDateTimeConverter = new(
+        value => value,
+        value => value.HasValue
+            ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+            : null);
+
     public AppDbContext(DbContextOptions<AppDbContext> options)
         : base(options)
     {
     }
 
     public DbSet<Note> Notes => Set<Note>();
+
+    public DbSet<Folder> Folders => Set<Folder>();
 
     public DbSet<TodoItem> TodoItems => Set<TodoItem>();
 
@@ -34,17 +47,67 @@ public sealed class AppDbContext : DbContext
                 .IsRequired();
 
             entity.Property(note => note.CreatedAt)
+                .HasConversion(UtcDateTimeConverter)
                 .HasColumnType("TEXT")
                 .IsRequired();
 
             entity.Property(note => note.UpdatedAt)
+                .HasConversion(UtcDateTimeConverter)
                 .HasColumnType("TEXT")
+                .IsRequired();
+
+            entity.Property(note => note.IsFavorite)
+                .HasColumnType("INTEGER")
+                .HasDefaultValue(false)
+                .IsRequired();
+
+            entity.Property(note => note.FavoritedAt)
+                .HasConversion(NullableUtcDateTimeConverter)
+                .HasColumnType("TEXT");
+
+            entity.Property(note => note.FolderName)
+                .HasColumnType("TEXT")
+                .HasDefaultValue("未分类")
                 .IsRequired();
 
             entity.Property(note => note.IsDeleted)
                 .HasColumnType("INTEGER")
                 .HasDefaultValue(false)
                 .IsRequired();
+
+            entity.Property(note => note.DeletedAt)
+                .HasConversion(NullableUtcDateTimeConverter)
+                .HasColumnType("TEXT");
+        });
+
+        modelBuilder.Entity<Folder>(entity =>
+        {
+            entity.ToTable("Folders");
+            entity.HasKey(folder => folder.Id);
+
+            entity.Property(folder => folder.Id)
+                .HasColumnType("TEXT")
+                .IsRequired();
+
+            entity.Property(folder => folder.Name)
+                .HasColumnType("TEXT")
+                .IsRequired();
+
+            entity.Property(folder => folder.NormalizedName)
+                .HasColumnType("TEXT")
+                .IsRequired();
+
+            entity.Property(folder => folder.CreatedAt)
+                .HasColumnType("TEXT")
+                .IsRequired();
+
+            entity.Property(folder => folder.IsSystem)
+                .HasColumnType("INTEGER")
+                .HasDefaultValue(false)
+                .IsRequired();
+
+            entity.HasIndex(folder => folder.NormalizedName)
+                .IsUnique();
         });
 
         modelBuilder.Entity<TodoItem>(entity =>

@@ -43,7 +43,7 @@ public sealed class QuickNoteWindowTests
     }
 
     [Fact]
-    public void DragHandle_KeepsOriginalHitAreaAndShowsCenteredGripLines()
+    public void DragHandle_KeepsOriginalHitAreaAndShowsSingleCenteredGripLine()
     {
         var xaml = XDocument.Load(FindQuickNoteWindowXamlPath());
         var dragHandle = xaml
@@ -54,21 +54,38 @@ public sealed class QuickNoteWindowTests
             .Descendants()
             .Single(element => element.Name.LocalName == "StackPanel"
                 && (string?)FindAttributeByLocalName(element, "Name") == "DragHandleGrip");
-        var gripLines = dragHandle
+        var gripLines = grip
             .Descendants()
             .Where(element => element.Name.LocalName == "Border"
                 && ((string?)FindAttributeByLocalName(element, "Name"))?.StartsWith("DragHandleLine", StringComparison.Ordinal) == true)
-            .ToList();
+            .ToArray();
+        var gripLine = Assert.Single(gripLines);
 
         Assert.Null(dragHandle.Attribute("HorizontalAlignment"));
         Assert.Equal("DragHandle_OnMouseLeftButtonDown", (string?)dragHandle.Attribute("MouseLeftButtonDown"));
         Assert.Equal("Center", (string?)grip.Attribute("HorizontalAlignment"));
-        Assert.Equal(3, gripLines.Count);
-        Assert.All(gripLines, line =>
-        {
-            Assert.Equal("24", (string?)line.Attribute("Width"));
-            Assert.Equal("1", (string?)line.Attribute("Height"));
-        });
+        Assert.Equal("32", (string?)gripLine.Attribute("Width"));
+        Assert.Equal("1", (string?)gripLine.Attribute("Height"));
+    }
+
+    [Fact]
+    public void Footer_MovesDownSixDipAndKeepsStatsAndActionsTogether()
+    {
+        var xaml = XDocument.Load(FindQuickNoteWindowXamlPath());
+        var stats = xaml.Descendants().Single(element =>
+            element.Name.LocalName == "TextBlock"
+            && (string?)FindAttributeByLocalName(element, "Name") == "BodyStatsTextBlock");
+        var footer = stats.Parent ?? throw new InvalidOperationException("Quick-note footer is missing.");
+        var footerNames = footer.Descendants()
+            .Select(element => (string?)FindAttributeByLocalName(element, "Name"))
+            .Where(name => name is not null)
+            .ToArray();
+
+        Assert.Equal("DockPanel", footer.Name.LocalName);
+        Assert.Equal("0,18,0,-6", (string?)footer.Attribute("Margin"));
+        Assert.Contains("BodyStatsTextBlock", footerNames);
+        Assert.Contains("CancelButton", footerNames);
+        Assert.Contains("SaveButton", footerNames);
     }
 
     [Fact]
@@ -87,6 +104,30 @@ public sealed class QuickNoteWindowTests
         var quickNoteBorder = FindSolidColorBrush(styles, "QuickNoteBorderBrush");
 
         Assert.Equal("#DDD7CF", (string?)quickNoteBorder.Attribute("Color"));
+    }
+
+    [Fact]
+    public void FooterActions_UseEightDipRoundedButtonStyle()
+    {
+        var xaml = XDocument.Load(FindQuickNoteWindowXamlPath());
+        var styles = XDocument.Load(FindStylesXamlPath());
+        var buttons = xaml
+            .Descendants()
+            .Where(element => element.Name.LocalName == "Button"
+                && (string?)FindAttributeByLocalName(element, "Name") is "SaveButton" or "CancelButton")
+            .ToArray();
+        var roundedStyle = styles
+            .Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)FindAttributeByLocalName(element, "Key") == "RoundedButtonStyle");
+        var roundedBorder = roundedStyle
+            .Descendants()
+            .Single(element => element.Name.LocalName == "Border"
+                && (string?)element.Attribute("CornerRadius") == "8");
+
+        Assert.Equal(2, buttons.Length);
+        Assert.All(buttons, button => Assert.Equal("{StaticResource RoundedButtonStyle}", (string?)button.Attribute("Style")));
+        Assert.NotNull(roundedBorder);
     }
 
     [Fact]

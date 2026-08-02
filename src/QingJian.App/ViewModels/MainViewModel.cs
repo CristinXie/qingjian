@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Windows.Data;
+using System.Windows.Threading;
 using QingJian.App.Models;
 using QingJian.App.Services;
 
@@ -8,26 +10,134 @@ namespace QingJian.App.ViewModels;
 public sealed class MainViewModel : ViewModelBase
 {
     private readonly INoteService _noteService;
+    private readonly IFolderService? _folderService;
     private readonly TimeSpan _autoSaveDelay;
+    private readonly object _notesSynchronization = new();
+    private readonly object _editVersionSynchronization = new();
+    private readonly BatchSelectionState _batchSelection = new();
+    private readonly Dictionary<string, long> _unsavedEditVersions = new(StringComparer.Ordinal);
+    private long _nextEditVersion;
     private CancellationTokenSource? _autoSaveCancellation;
     private Note? _selectedNote;
     private bool _isBusy;
     private bool _isLoadingSelection;
+    private string _searchText = string.Empty;
+    private string? _currentFolderName;
+    private NoteNavigationSortMode _navigationSortMode = NoteNavigationSortMode.Time;
+    private bool _isBatchMode;
 
     public MainViewModel(INoteService noteService)
-        : this(noteService, TimeSpan.FromMilliseconds(700))
+        : this(noteService, null, TimeSpan.FromMilliseconds(700), () => DateTime.Now)
     {
     }
 
     public MainViewModel(INoteService noteService, TimeSpan autoSaveDelay)
+        : this(noteService, null, autoSaveDelay, () => DateTime.Now)
+    {
+    }
+
+    public MainViewModel(INoteService noteService, TimeSpan autoSaveDelay, Func<DateTime> localNow)
+        : this(noteService, null, autoSaveDelay, localNow)
+    {
+    }
+
+    public MainViewModel(INoteService noteService, IFolderService folderService)
+        : this(noteService, folderService, TimeSpan.FromMilliseconds(700), () => DateTime.Now)
+    {
+    }
+
+    public MainViewModel(
+        INoteService noteService,
+        IFolderService? folderService,
+        TimeSpan autoSaveDelay,
+        Func<DateTime> localNow)
     {
         _noteService = noteService;
+        _folderService = folderService;
         _autoSaveDelay = autoSaveDelay;
+        BindingOperations.EnableCollectionSynchronization(Notes, _notesSynchronization);
+        NotesView = new ListCollectionView(Notes)
+        {
+            Filter = FilterNote,
+            CustomSort = new NoteNavigationComparer(() => NavigationSortMode, () => SearchText)
+        };
+        NotesView.GroupDescriptions.Add(new NoteNavigationGroupDescription(
+            localNow,
+            () => SearchText,
+            () => NavigationSortMode));
         NewNoteCommand = new AsyncRelayCommand(NewNoteAsync);
         DeleteSelectedNoteCommand = new AsyncRelayCommand(DeleteSelectedNoteAsync, () => SelectedNote is not null);
+        ToggleNavigationSortCommand = new RelayCommand(ToggleNavigationSort);
     }
 
     public ObservableCollection<Note> Notes { get; } = new();
+
+    public ObservableCollection<FolderSummary> Folders { get; } = new();
+
+    public ListCollectionView NotesView { get; }
+
+    public string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            if (!SetField(ref _searchText, value ?? string.Empty))
+            {
+                return;
+            }
+
+            RefreshNoteNavigation();
+        }
+    }
+
+    public string? CurrentFolderName
+    {
+        get => _currentFolderName;
+        private set => SetField(ref _currentFolderName, value);
+    }
+
+    public bool HasFolderFilter => CurrentFolderName is not null;
+
+    public string CurrentFolderDisplayName => CurrentFolderName ?? FolderNamePolicy.AllNotesName;
+
+    public bool ShowFolderEmptyState => HasFolderFilter
+        && Folders.FirstOrDefault(folder =>
+            string.Equals(folder.Name, CurrentFolderName, StringComparison.OrdinalIgnoreCase))?.NoteCount == 0;
+
+    public NoteNavigationSortMode NavigationSortMode
+    {
+        get => _navigationSortMode;
+        private set => SetField(ref _navigationSortMode, value);
+    }
+
+    public string SortToggleToolTip => NavigationSortMode == NoteNavigationSortMode.Time
+        ? "按收藏"
+        : "按时间";
+
+    public bool ShowNoSearchResults => !IsEmpty
+        && !ShowFolderEmptyState
+        && !string.IsNullOrWhiteSpace(SearchText)
+        && NotesView.IsEmpty;
+
+    public bool IsBatchMode
+    {
+        get => _isBatchMode;
+        private set => SetField(ref _isBatchMode, value);
+    }
+
+    public IReadOnlySet<string> BatchScopeIds => _batchSelection.ScopeIds;
+
+    public int BatchSelectedCount => _batchSelection.SelectedCount;
+
+    public bool HasBatchSelection => BatchSelectedCount > 0;
+
+    public bool CanEnterBatchMode => !IsBatchMode && !NotesView.IsEmpty;
+
+    public bool CanBatchFavorite =>
+        HasBatchSelection && !_batchSelection.AllSelectedAreFavorite;
+
+    public bool CanBatchUnfavorite =>
+        HasBatchSelection && !_batchSelection.AllSelectedAreNotFavorite;
 
     public Note? SelectedNote
     {
@@ -56,7 +166,16 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
-    public bool IsEmpty => Notes.Count == 0;
+    public bool IsEmpty
+    {
+        get
+        {
+            lock (_notesSynchronization)
+            {
+                return Notes.Count == 0;
+            }
+        }
+    }
 
     public bool IsBusy
     {
@@ -68,6 +187,8 @@ public sealed class MainViewModel : ViewModelBase
 
     public AsyncRelayCommand DeleteSelectedNoteCommand { get; }
 
+    public RelayCommand ToggleNavigationSortCommand { get; }
+
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
         IsBusy = true;
@@ -76,14 +197,24 @@ public sealed class MainViewModel : ViewModelBase
         try
         {
             await _noteService.InitializeAsync(cancellationToken);
-            var notes = await _noteService.GetActiveNotesAsync(cancellationToken);
-
-            Notes.Clear();
-            foreach (var note in notes)
+            if (_folderService is not null)
             {
-                Notes.Add(note);
+                await _folderService.InitializeAsync(cancellationToken);
+                await RefreshFoldersAsync(cancellationToken);
             }
 
+            var notes = await _noteService.GetActiveNotesAsync(cancellationToken);
+
+            lock (_notesSynchronization)
+            {
+                Notes.Clear();
+                foreach (var note in notes)
+                {
+                    Notes.Add(note);
+                }
+            }
+
+            RefreshNoteNavigation();
             SelectedNote = Notes.FirstOrDefault();
             OnPropertyChanged(nameof(IsEmpty));
         }
@@ -96,9 +227,20 @@ public sealed class MainViewModel : ViewModelBase
 
     public async Task NewNoteAsync()
     {
-        var note = await _noteService.CreateNoteAsync();
-        Notes.Insert(0, note);
+        var note = CurrentFolderName is null
+            ? await _noteService.CreateNoteAsync()
+            : await _noteService.CreateNoteInFolderAsync(CurrentFolderName);
+        lock (_notesSynchronization)
+        {
+            Notes.Insert(0, note);
+        }
+
+        RefreshNoteNavigation();
         SelectedNote = note;
+        if (_folderService is not null)
+        {
+            await RefreshFoldersAsync();
+        }
         OnPropertyChanged(nameof(IsEmpty));
     }
 
@@ -109,19 +251,32 @@ public sealed class MainViewModel : ViewModelBase
             return;
         }
 
-        var index = Notes.IndexOf(SelectedNote);
         var note = SelectedNote;
+        int index;
+
+        lock (_notesSynchronization)
+        {
+            index = Notes.IndexOf(note);
+        }
 
         await _noteService.DeleteNoteAsync(note);
-        Notes.Remove(note);
-
-        if (Notes.Count == 0)
+        lock (_notesSynchronization)
         {
-            SelectedNote = null;
+            Notes.Remove(note);
         }
-        else
+
+        RefreshNoteNavigation();
+
+        lock (_notesSynchronization)
         {
-            SelectedNote = Notes[Math.Min(index, Notes.Count - 1)];
+            if (Notes.Count == 0)
+            {
+                SelectedNote = null;
+            }
+            else
+            {
+                SelectedNote = Notes[Math.Min(index, Notes.Count - 1)];
+            }
         }
 
         OnPropertyChanged(nameof(IsEmpty));
@@ -131,7 +286,12 @@ public sealed class MainViewModel : ViewModelBase
     {
         var wasEmpty = IsEmpty;
 
-        Notes.Insert(0, note);
+        lock (_notesSynchronization)
+        {
+            Notes.Insert(0, note);
+        }
+
+        RefreshNoteNavigation();
 
         if (select)
         {
@@ -144,6 +304,137 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
+    public async Task ReloadActiveNotesAsync(CancellationToken cancellationToken = default)
+    {
+        var selectedId = SelectedNote?.Id;
+        var notes = await _noteService.GetActiveNotesAsync(cancellationToken);
+
+        lock (_notesSynchronization)
+        {
+            Notes.Clear();
+            foreach (var note in notes)
+            {
+                Notes.Add(note);
+            }
+        }
+
+        RefreshNoteNavigation();
+        var selected = selectedId is null
+            ? null
+            : Notes.FirstOrDefault(note => note.Id == selectedId);
+        SelectedNote = selected is not null && NotesView.Contains(selected)
+            ? selected
+            : NotesView.Cast<Note>().FirstOrDefault();
+        OnPropertyChanged(nameof(IsEmpty));
+    }
+
+    public void EnterBatchMode()
+    {
+        if (!CanEnterBatchMode)
+        {
+            return;
+        }
+
+        _batchSelection.Enter(NotesView.Cast<Note>().ToArray());
+        IsBatchMode = true;
+        NotifyBatchStateChanged();
+        RefreshNoteNavigation();
+    }
+
+    public void ExitBatchMode()
+    {
+        if (!IsBatchMode)
+        {
+            return;
+        }
+
+        IsBatchMode = false;
+        _batchSelection.Exit();
+        NotifyBatchStateChanged();
+        RefreshNoteNavigation();
+    }
+
+    public void SetBatchSelection(IEnumerable<Note> notes)
+    {
+        if (!IsBatchMode)
+        {
+            return;
+        }
+
+        _batchSelection.SetSelection(notes);
+        NotifyBatchStateChanged();
+    }
+
+    public async Task SetBatchFavoriteAsync(
+        bool isFavorite,
+        CancellationToken cancellationToken = default)
+    {
+        var selectedNotes = _batchSelection.SelectedNotes.ToArray();
+        if (!IsBatchMode || selectedNotes.Length == 0)
+        {
+            return;
+        }
+
+        await _noteService.SetFavoritesAsync(selectedNotes, isFavorite, cancellationToken);
+        _batchSelection.ClearSelection();
+        NotifyBatchStateChanged();
+        RefreshNoteNavigation();
+    }
+
+    public async Task MoveBatchSelectionAsync(
+        string folderName,
+        CancellationToken cancellationToken = default)
+    {
+        var selectedNotes = _batchSelection.SelectedNotes.ToArray();
+        if (!IsBatchMode || selectedNotes.Length == 0)
+        {
+            return;
+        }
+
+        var selectedIndex = GetSelectedNoteVisibleIndex();
+        await _noteService.MoveNotesAsync(selectedNotes, folderName, cancellationToken);
+        if (_folderService is not null)
+        {
+            await RefreshFoldersAsync(cancellationToken);
+        }
+
+        RefreshNoteNavigation();
+        EnsureSelectedNoteIsVisible(selectedIndex);
+        _batchSelection.ClearSelection();
+        NotifyBatchStateChanged();
+    }
+
+    public async Task DeleteBatchSelectionAsync(CancellationToken cancellationToken = default)
+    {
+        var selectedNotes = _batchSelection.SelectedNotes.ToArray();
+        if (!IsBatchMode || selectedNotes.Length == 0)
+        {
+            return;
+        }
+
+        var selectedIndex = GetSelectedNoteVisibleIndex();
+        await _noteService.DeleteNotesAsync(selectedNotes, cancellationToken);
+
+        lock (_notesSynchronization)
+        {
+            foreach (var note in selectedNotes)
+            {
+                Notes.Remove(note);
+            }
+        }
+
+        if (_folderService is not null)
+        {
+            await RefreshFoldersAsync(cancellationToken);
+        }
+
+        RefreshNoteNavigation();
+        EnsureSelectedNoteIsVisible(selectedIndex);
+        _batchSelection.ClearSelection();
+        NotifyBatchStateChanged();
+        OnPropertyChanged(nameof(IsEmpty));
+    }
+
     public Task SaveSelectedNoteNowAsync(CancellationToken cancellationToken = default)
     {
         _autoSaveCancellation?.Cancel();
@@ -153,49 +444,301 @@ public sealed class MainViewModel : ViewModelBase
             return Task.CompletedTask;
         }
 
+        if (!HasUnsavedEdits(SelectedNote))
+        {
+            return Task.CompletedTask;
+        }
+
         return SaveSelectedNoteAsync(cancellationToken);
     }
 
-    private void OnSelectedNotePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    public void RefreshNoteNavigation()
     {
-        if (_isLoadingSelection || e.PropertyName is not (nameof(Note.Title) or nameof(Note.Content)))
+        if (NotesView.Dispatcher.CheckAccess())
+        {
+            RefreshNoteNavigationCore();
+            return;
+        }
+
+        NotesView.Dispatcher.BeginInvoke(DispatcherPriority.DataBind, new Action(RefreshNoteNavigationCore));
+    }
+
+    public void ApplyFolderFilter(string? folderName)
+    {
+        var normalizedName = string.IsNullOrWhiteSpace(folderName)
+            ? null
+            : FolderNamePolicy.NormalizeDisplayName(folderName);
+        CurrentFolderName = normalizedName;
+        RefreshNoteNavigation();
+
+        if (SelectedNote is not null && NotesView.Cast<Note>().Contains(SelectedNote))
         {
             return;
         }
 
-        ScheduleAutoSave();
+        SelectedNote = NotesView.Cast<Note>().FirstOrDefault();
     }
 
-    private void ScheduleAutoSave()
+    public async Task RefreshFoldersAsync(CancellationToken cancellationToken = default)
+    {
+        if (_folderService is null)
+        {
+            return;
+        }
+
+        var folders = await _folderService.GetFoldersAsync(cancellationToken);
+        lock (_notesSynchronization)
+        {
+            Folders.Clear();
+            foreach (var folder in folders)
+            {
+                Folders.Add(folder);
+            }
+        }
+
+        if (CurrentFolderName is not null
+            && !Folders.Any(folder =>
+                string.Equals(folder.Name, CurrentFolderName, StringComparison.OrdinalIgnoreCase)))
+        {
+            CurrentFolderName = FolderNamePolicy.UncategorizedName;
+        }
+
+        RefreshNoteNavigation();
+    }
+
+    public void ApplyFolderRename(string oldName, string newName)
+    {
+        if (string.Equals(CurrentFolderName, oldName, StringComparison.OrdinalIgnoreCase))
+        {
+            CurrentFolderName = newName;
+        }
+
+        foreach (var note in Notes.Where(note =>
+                     string.Equals(note.FolderName, oldName, StringComparison.OrdinalIgnoreCase)))
+        {
+            note.FolderName = newName;
+        }
+
+        RefreshNoteNavigation();
+    }
+
+    public void ApplyFolderDeletion(string deletedName)
+    {
+        if (string.Equals(CurrentFolderName, deletedName, StringComparison.OrdinalIgnoreCase))
+        {
+            CurrentFolderName = FolderNamePolicy.UncategorizedName;
+        }
+
+        foreach (var note in Notes.Where(note =>
+                     string.Equals(note.FolderName, deletedName, StringComparison.OrdinalIgnoreCase)))
+        {
+            note.FolderName = FolderNamePolicy.UncategorizedName;
+        }
+
+        RefreshNoteNavigation();
+    }
+
+    public async Task MoveNoteAsync(
+        Note note,
+        string folderName,
+        CancellationToken cancellationToken = default)
+    {
+        var visibleNotes = NotesView.Cast<Note>().ToList();
+        var originalIndex = visibleNotes.IndexOf(note);
+        var wasSelected = ReferenceEquals(SelectedNote, note);
+
+        await _noteService.MoveNoteAsync(note, folderName, cancellationToken);
+        if (_folderService is not null)
+        {
+            await RefreshFoldersAsync(cancellationToken);
+        }
+        RefreshNoteNavigation();
+
+        if (!wasSelected || NotesView.Cast<Note>().Contains(note))
+        {
+            return;
+        }
+
+        var remainingNotes = NotesView.Cast<Note>().ToList();
+        SelectedNote = remainingNotes.Count == 0
+            ? null
+            : remainingNotes[Math.Min(Math.Max(originalIndex, 0), remainingNotes.Count - 1)];
+    }
+
+    public async Task ToggleFavoriteAsync(Note note)
+    {
+        await _noteService.SetFavoriteAsync(note, !note.IsFavorite);
+        RefreshNoteNavigation();
+    }
+
+    private void OnSelectedNotePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_isLoadingSelection
+            || sender is not Note note
+            || e.PropertyName is not (nameof(Note.Title) or nameof(Note.Content)))
+        {
+            return;
+        }
+
+        MarkUnsaved(note);
+        ScheduleAutoSave(note);
+    }
+
+    private bool FilterNote(object item)
+    {
+        if (item is not Note note)
+        {
+            return false;
+        }
+
+        if (IsBatchMode && !BatchScopeIds.Contains(note.Id))
+        {
+            return false;
+        }
+
+        if (CurrentFolderName is not null
+            && !string.Equals(note.FolderName, CurrentFolderName, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return string.IsNullOrWhiteSpace(SearchText)
+            || NoteNavigationHelper.GetSearchMatch(note, SearchText) != NoteSearchMatchKind.None;
+    }
+
+    private void ToggleNavigationSort()
+    {
+        NavigationSortMode = NavigationSortMode == NoteNavigationSortMode.Time
+            ? NoteNavigationSortMode.Favorite
+            : NoteNavigationSortMode.Time;
+        RefreshNoteNavigation();
+    }
+
+    private void RefreshNoteNavigationCore()
+    {
+        NotesView.Refresh();
+        OnPropertyChanged(nameof(ShowNoSearchResults));
+        OnPropertyChanged(nameof(ShowFolderEmptyState));
+        OnPropertyChanged(nameof(HasFolderFilter));
+        OnPropertyChanged(nameof(CurrentFolderDisplayName));
+        OnPropertyChanged(nameof(SortToggleToolTip));
+        OnPropertyChanged(nameof(SelectedNote));
+        OnPropertyChanged(nameof(CanEnterBatchMode));
+    }
+
+    private int GetSelectedNoteVisibleIndex()
+    {
+        return SelectedNote is null
+            ? 0
+            : Math.Max(NotesView.Cast<Note>().ToList().IndexOf(SelectedNote), 0);
+    }
+
+    private void EnsureSelectedNoteIsVisible(int originalIndex)
+    {
+        if (SelectedNote is not null && NotesView.Cast<Note>().Contains(SelectedNote))
+        {
+            return;
+        }
+
+        var remainingNotes = NotesView.Cast<Note>().ToList();
+        SelectedNote = remainingNotes.Count == 0
+            ? null
+            : remainingNotes[Math.Min(originalIndex, remainingNotes.Count - 1)];
+    }
+
+    private void NotifyBatchStateChanged()
+    {
+        OnPropertyChanged(nameof(IsBatchMode));
+        OnPropertyChanged(nameof(BatchScopeIds));
+        OnPropertyChanged(nameof(BatchSelectedCount));
+        OnPropertyChanged(nameof(HasBatchSelection));
+        OnPropertyChanged(nameof(CanEnterBatchMode));
+        OnPropertyChanged(nameof(CanBatchFavorite));
+        OnPropertyChanged(nameof(CanBatchUnfavorite));
+    }
+
+    private void ScheduleAutoSave(Note note)
     {
         _autoSaveCancellation?.Cancel();
         var cancellation = new CancellationTokenSource();
         _autoSaveCancellation = cancellation;
 
-        _ = SaveAfterDelayAsync(cancellation.Token);
+        _ = SaveAfterDelayAsync(note, cancellation.Token);
     }
 
-    private async Task SaveAfterDelayAsync(CancellationToken cancellationToken)
+    private async Task SaveAfterDelayAsync(Note note, CancellationToken cancellationToken)
     {
         try
         {
             await Task.Delay(_autoSaveDelay, cancellationToken);
-            await SaveSelectedNoteAsync(cancellationToken);
+            await SaveNoteAsync(note, cancellationToken);
         }
         catch (OperationCanceledException)
         {
         }
     }
 
-    private async Task SaveSelectedNoteAsync(CancellationToken cancellationToken)
+    private Task SaveSelectedNoteAsync(CancellationToken cancellationToken)
     {
         if (SelectedNote is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return SaveNoteAsync(SelectedNote, cancellationToken);
+    }
+
+    private async Task SaveNoteAsync(Note note, CancellationToken cancellationToken)
+    {
+        if (!TryGetUnsavedEditVersion(note, out var editVersion))
         {
             return;
         }
 
-        await _noteService.SaveNoteAsync(SelectedNote, cancellationToken);
-        MoveSelectedNoteToTop();
+        await _noteService.SaveNoteAsync(note, cancellationToken);
+        MarkSavedIfCurrent(note, editVersion);
+        if (ReferenceEquals(SelectedNote, note))
+        {
+            MoveSelectedNoteToTop();
+        }
+
+        RefreshNoteNavigation();
+    }
+
+    private void MarkUnsaved(Note note)
+    {
+        lock (_editVersionSynchronization)
+        {
+            _unsavedEditVersions[note.Id] = ++_nextEditVersion;
+        }
+    }
+
+    private bool HasUnsavedEdits(Note note)
+    {
+        lock (_editVersionSynchronization)
+        {
+            return _unsavedEditVersions.ContainsKey(note.Id);
+        }
+    }
+
+    private bool TryGetUnsavedEditVersion(Note note, out long editVersion)
+    {
+        lock (_editVersionSynchronization)
+        {
+            return _unsavedEditVersions.TryGetValue(note.Id, out editVersion);
+        }
+    }
+
+    private void MarkSavedIfCurrent(Note note, long savedEditVersion)
+    {
+        lock (_editVersionSynchronization)
+        {
+            if (_unsavedEditVersions.TryGetValue(note.Id, out var currentEditVersion)
+                && currentEditVersion == savedEditVersion)
+            {
+                _unsavedEditVersions.Remove(note.Id);
+            }
+        }
     }
 
     private void MoveSelectedNoteToTop()
@@ -205,10 +748,13 @@ public sealed class MainViewModel : ViewModelBase
             return;
         }
 
-        var index = Notes.IndexOf(SelectedNote);
-        if (index > 0)
+        lock (_notesSynchronization)
         {
-            Notes.Move(index, 0);
+            var index = Notes.IndexOf(SelectedNote);
+            if (index > 0)
+            {
+                Notes.Move(index, 0);
+            }
         }
     }
 }

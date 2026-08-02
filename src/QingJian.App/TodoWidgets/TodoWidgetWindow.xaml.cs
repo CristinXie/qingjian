@@ -669,10 +669,11 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
             anchorTopLeft.Y - contentTop,
             anchor.ActualWidth,
             anchor.ActualHeight);
-        var popoverSize = MeasureQuickAddPopoverSize();
         var availableSize = new Size(
             MainLayoutGrid.ActualWidth,
             Math.Max(0, MainLayoutGrid.ActualHeight - contentTop));
+        QuickAddPopover.MaxHeight = availableSize.Height;
+        var popoverSize = MeasureQuickAddPopoverSize();
         var position = TodoWidgetPopoverPositioner.CalculateNearAnchor(
             anchorBounds,
             popoverSize,
@@ -690,7 +691,7 @@ public partial class TodoWidgetWindow : Window, ITodoWidgetWindow
             QuickAddPopover.Visibility = Visibility.Hidden;
         }
 
-        QuickAddPopover.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        QuickAddPopover.Measure(new Size(QuickAddPopover.Width, QuickAddPopover.MaxHeight));
         var width = double.IsNaN(QuickAddPopover.Width)
             ? QuickAddPopover.DesiredSize.Width
             : QuickAddPopover.Width;

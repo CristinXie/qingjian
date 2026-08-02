@@ -19,7 +19,10 @@ public sealed class TodoTimeDisplayConverter : IValueConverter
             return start;
         }
 
-        return $"{start}-{todo.EndTime.Value.ToString("HH:mm", CultureInfo.InvariantCulture)}";
+        var end = todo.EndTime.Value.ToString("HH:mm", CultureInfo.InvariantCulture);
+        return TodoTimeRangeRules.IsOvernight(todo.StartTime.Value, todo.EndTime.Value)
+            ? $"{start}-次日\n{end}"
+            : $"{start}-{end}";
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

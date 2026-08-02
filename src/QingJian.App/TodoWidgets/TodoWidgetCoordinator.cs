@@ -36,13 +36,16 @@ public sealed class TodoWidgetCoordinator
 
     public bool IsVisible => _isWidgetVisible;
 
+    public event EventHandler<bool>? VisibilityChanged;
+
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         _settings = await _settingsService.LoadAsync(cancellationToken);
         _viewModel = new TodoWidgetViewModel(_todoService, _settings.TodoWidget);
-        _isWidgetVisible = _settings.TodoWidget.IsVisible;
+        var restoreVisible = _settings.TodoWidget.IsVisible;
+        SetVisibility(false);
 
-        if (_isWidgetVisible)
+        if (restoreVisible)
         {
             await ShowWidgetAsync(cancellationToken);
         }
@@ -52,7 +55,7 @@ public sealed class TodoWidgetCoordinator
     {
         EnsureWindow();
         _window!.Show();
-        _isWidgetVisible = true;
+        SetVisibility(true);
         _window.MoveBehindOtherWindows();
         await _viewModel!.LoadAsync(cancellationToken);
         await SavePreferencesAsync(cancellationToken);
@@ -61,7 +64,7 @@ public sealed class TodoWidgetCoordinator
     public async Task HideWidgetAsync(CancellationToken cancellationToken = default)
     {
         _window?.Hide();
-        _isWidgetVisible = false;
+        SetVisibility(false);
         await SavePreferencesAsync(cancellationToken);
     }
 
@@ -91,6 +94,49 @@ public sealed class TodoWidgetCoordinator
             .ConfigureAwait(false);
     }
 
+    public TodoWidgetPreferences CapturePreferences()
+    {
+        if (_viewModel is null)
+        {
+            return _settings.TodoWidget with { IsVisible = IsVisible };
+        }
+
+        var left = _window?.Left ?? _settings.TodoWidget.Left;
+        var top = _window?.Top ?? _settings.TodoWidget.Top;
+        return _viewModel.ToPreferences(left, top, IsVisible);
+    }
+
+    public async Task ApplyRuntimePreferencesAsync(
+        TodoWidgetPreferences preferences,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = preferences.Normalize();
+        _settings = _settings with { TodoWidget = normalized };
+        _viewModel ??= new TodoWidgetViewModel(_todoService, normalized);
+        _viewModel.ApplyPreferences(normalized);
+
+        if (normalized.IsVisible)
+        {
+            EnsureWindow();
+            _window!.Left = normalized.Left;
+            _window.Top = normalized.Top;
+            _window.Show();
+            SetVisibility(true);
+            _window.MoveBehindOtherWindows();
+            await _viewModel.LoadAsync(cancellationToken);
+            return;
+        }
+
+        if (_window is not null)
+        {
+            _window.Left = normalized.Left;
+            _window.Top = normalized.Top;
+            _window.Hide();
+        }
+
+        SetVisibility(false);
+    }
+
     private void EnsureWindow()
     {
         if (_window is not null)
@@ -102,6 +148,17 @@ public sealed class TodoWidgetCoordinator
         _window = _windowFactory(_viewModel, this);
         _window.Left = _settings.TodoWidget.Left;
         _window.Top = _settings.TodoWidget.Top;
+    }
+
+    private void SetVisibility(bool isVisible)
+    {
+        if (_isWidgetVisible == isVisible)
+        {
+            return;
+        }
+
+        _isWidgetVisible = isVisible;
+        VisibilityChanged?.Invoke(this, isVisible);
     }
 }
 

@@ -93,6 +93,21 @@ public sealed class TodoWidgetDraftParserTests
     }
 
     [Fact]
+    public void ValidateQuickAddDraft_CreatesOvernightRangeTodoWhenStartIsLaterThanEnd()
+    {
+        var date = new DateOnly(2026, 7, 23);
+
+        var result = TodoWidgetDraftParser.ValidateQuickAddDraft(date, "值班", "23:00", "01:00");
+
+        Assert.True(result.IsValid);
+        Assert.NotNull(result.Draft);
+        Assert.Equal(date, result.Draft.Date);
+        Assert.Equal(TodoTimeKind.Range, result.Draft.TimeKind);
+        Assert.Equal(new TimeOnly(23, 0), result.Draft.StartTime);
+        Assert.Equal(new TimeOnly(1, 0), result.Draft.EndTime);
+    }
+
+    [Fact]
     public void ValidateQuickAddDraft_RejectsEmptyText()
     {
         var date = new DateOnly(2026, 7, 13);
@@ -119,7 +134,7 @@ public sealed class TodoWidgetDraftParserTests
     }
 
     [Fact]
-    public void ValidateQuickAddDraft_RejectsRangeWhereStartIsNotEarlierThanEnd()
+    public void ValidateQuickAddDraft_RejectsRangeWhereTimesAreEqual()
     {
         var date = new DateOnly(2026, 7, 13);
 
@@ -169,6 +184,27 @@ public sealed class TodoWidgetDraftParserTests
         Assert.Equal(TodoTimeKind.Range, result.Draft.TimeKind);
         Assert.Equal(new TimeOnly(9, 0), result.Draft.StartTime);
         Assert.Equal(new TimeOnly(10, 30), result.Draft.EndTime);
+    }
+
+    [Fact]
+    public void ValidateQuickAddDraft_CreatesOvernightRangeFromSeparateHourAndMinuteInputs()
+    {
+        var date = new DateOnly(2026, 7, 23);
+
+        var result = TodoWidgetDraftParser.ValidateQuickAddDraft(
+            date,
+            "值班",
+            startHourText: "23",
+            startMinuteText: "00",
+            endHourText: "01",
+            endMinuteText: "00");
+
+        Assert.True(result.IsValid);
+        Assert.NotNull(result.Draft);
+        Assert.Equal(date, result.Draft.Date);
+        Assert.Equal(TodoTimeKind.Range, result.Draft.TimeKind);
+        Assert.Equal(new TimeOnly(23, 0), result.Draft.StartTime);
+        Assert.Equal(new TimeOnly(1, 0), result.Draft.EndTime);
     }
 
     [Fact]

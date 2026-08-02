@@ -80,7 +80,12 @@ public sealed class TodoWidgetViewModelTests
         var service = new InMemoryTodoService();
         var viewModel = new TodoWidgetViewModel(
             service,
-            TodoWidgetPreferences.Default with { Mode = TodoWidgetMode.Calendar },
+            TodoWidgetPreferences.Default with
+            {
+                Mode = TodoWidgetMode.Calendar,
+                CalendarYear = today.Year,
+                CalendarMonth = today.Month
+            },
             () => today);
 
         viewModel.ShowNextMonth();
@@ -164,6 +169,30 @@ public sealed class TodoWidgetViewModelTests
         Assert.Null(viewModelType.GetMethod("SetHoverDate"));
         Assert.Null(viewModelType.GetMethod("OpenPopoverForDate"));
         Assert.Null(viewModelType.GetMethod("ClearHoverDate"));
+    }
+
+    [Fact]
+    public void ApplyPreferences_UpdatesRuntimeAppearanceAndCalendarMonth()
+    {
+        var viewModel = new TodoWidgetViewModel(
+            new InMemoryTodoService(),
+            TodoWidgetPreferences.Default,
+            () => new DateOnly(2026, 7, 13));
+        var preferences = TodoWidgetPreferences.Default with
+        {
+            Mode = TodoWidgetMode.Calendar,
+            Opacity = 0.55,
+            IsLocked = true,
+            CalendarYear = 2027,
+            CalendarMonth = 4
+        };
+
+        viewModel.ApplyPreferences(preferences);
+
+        Assert.Equal(TodoWidgetMode.Calendar, viewModel.Mode);
+        Assert.Equal(0.55, viewModel.Opacity);
+        Assert.True(viewModel.IsLocked);
+        Assert.Equal(new DateOnly(2027, 4, 1), viewModel.CalendarMonth);
     }
 
     private sealed class InMemoryTodoService : ITodoService

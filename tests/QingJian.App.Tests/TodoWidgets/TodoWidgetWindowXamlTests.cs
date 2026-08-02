@@ -186,7 +186,9 @@ public sealed class TodoWidgetWindowXamlTests
             element => element.Name.LocalName == "TextBlock"
                 && (string?)element.Attribute("Text") == "待办内容");
         Assert.Equal("1", (string?)todoTextBox.Attribute("BorderThickness"));
-        Assert.Equal("#FFFFFF", (string?)todoTextBox.Attribute("Background"));
+        Assert.Equal(
+            "{StaticResource TodoWidgetPopoverBackgroundBrush}",
+            (string?)todoTextBox.Attribute("Background"));
         Assert.Equal("6,4", (string?)todoTextBox.Attribute("Padding"));
         Assert.Equal("64", (string?)todoTextBox.Attribute("MinHeight"));
     }
@@ -673,6 +675,148 @@ public sealed class TodoWidgetWindowXamlTests
         Assert.Contains("MeasureQuickAddPopoverSize", source, StringComparison.Ordinal);
         Assert.Contains("Visibility.Hidden", source, StringComparison.Ordinal);
         Assert.Contains("var popoverSize = MeasureQuickAddPopoverSize();", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WidgetAndPopovers_UseTheLightGreenSurfaceResources()
+    {
+        var xaml = XDocument.Load(FindTodoWidgetWindowXamlPath());
+        var styles = XDocument.Load(FindSourcePath("Resources", "Styles.xaml"));
+        var backgroundColor = styles.Descendants().Single(element =>
+            element.Name.LocalName == "Color"
+            && (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "TodoWidgetBackgroundColor");
+        var popoverBrush = styles.Descendants().Single(element =>
+            element.Name.LocalName == "SolidColorBrush"
+            && (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "TodoWidgetPopoverBackgroundBrush");
+        var popoverNames = new[] { "QuickAddPopover", "EditPopover", "CalendarPreviewPopover" };
+
+        Assert.Equal("#F2FAF4", backgroundColor.Value);
+        Assert.Equal("#F2FAF4", (string?)popoverBrush.Attribute("Color"));
+        foreach (var name in popoverNames)
+        {
+            var popover = xaml.Descendants().Single(element =>
+                element.Name.LocalName == "Border"
+                && (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == name);
+            Assert.Equal("{StaticResource TodoWidgetPopoverBackgroundBrush}", (string?)popover.Attribute("Background"));
+        }
+    }
+
+    [Fact]
+    public void TodoPopoverBodyAndTimeInputs_MatchTheLightGreenBackground()
+    {
+        var xaml = XDocument.Load(FindTodoWidgetWindowXamlPath());
+        var expectedNames = new[]
+        {
+            "TodoTextBox",
+            "EditTimePickerBorder",
+            "EditStartHourTextBox",
+            "EditStartMinuteTextBox",
+            "EditEndHourTextBox",
+            "EditEndMinuteTextBox",
+            "QuickAddTextBox",
+            "QuickAddTimePickerBorder",
+            "QuickAddStartHourTextBox",
+            "QuickAddStartMinuteTextBox",
+            "QuickAddEndHourTextBox",
+            "QuickAddEndMinuteTextBox"
+        };
+
+        foreach (var name in expectedNames)
+        {
+            var element = xaml.Descendants().Single(candidate =>
+                (string?)candidate.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == name);
+            Assert.Equal(
+                "{StaticResource TodoWidgetPopoverBackgroundBrush}",
+                (string?)element.Attribute("Background"));
+        }
+    }
+
+    [Fact]
+    public void IconButtons_AreQuietWhileTextActionsKeepTheirNormalStyle()
+    {
+        var xaml = XDocument.Load(FindTodoWidgetWindowXamlPath());
+        var iconStyle = xaml.Descendants().Single(element =>
+            element.Name.LocalName == "Style"
+            && (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "TodoWidgetIconButtonStyle");
+        var setters = iconStyle.Elements()
+            .Where(element => element.Name.LocalName == "Setter")
+            .ToDictionary(element => (string)element.Attribute("Property")!, element => (string?)element.Attribute("Value"));
+        var iconClicks = new[]
+        {
+            "AddTodoForDateButton_OnClick",
+            "AddTodayTodoButton_OnClick",
+            "PreviousMonthButton_OnClick",
+            "NextMonthButton_OnClick",
+            "EditTodoButton_OnClick",
+            "DeleteTodoButton_OnClick"
+        };
+
+        Assert.Equal("Transparent", setters["Background"]);
+        Assert.Equal("Transparent", setters["BorderBrush"]);
+        Assert.Equal("0", setters["BorderThickness"]);
+        Assert.Equal("0", setters["Padding"]);
+        Assert.All(
+            xaml.Descendants().Where(element =>
+                element.Name.LocalName == "Button"
+                && iconClicks.Contains((string?)element.Attribute("Click"))),
+            button => Assert.Equal("{StaticResource TodoWidgetIconButtonStyle}", (string?)button.Attribute("Style")));
+
+        var textActions = new[] { "创建", "关闭", "新增", "清空", "本月" };
+        Assert.All(
+            xaml.Descendants().Where(element =>
+                element.Name.LocalName == "Button"
+                && textActions.Contains((string?)element.Attribute("Content"))),
+            button => Assert.NotEqual("{StaticResource TodoWidgetIconButtonStyle}", (string?)button.Attribute("Style")));
+    }
+
+    [Fact]
+    public void QuickAddPopover_ScrollsFormAndKeepsFooterFixed()
+    {
+        var xaml = XDocument.Load(FindTodoWidgetWindowXamlPath());
+        var quickAddPopover = xaml.Descendants().Single(element =>
+            element.Name.LocalName == "Border"
+            && (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "QuickAddPopover");
+        var layout = quickAddPopover.Elements().Single(element => element.Name.LocalName == "Grid");
+        var rows = layout.Elements().Single(element => element.Name.LocalName == "Grid.RowDefinitions")
+            .Elements().Select(element => (string?)element.Attribute("Height")).ToArray();
+        var scrollViewer = layout.Descendants().Single(element =>
+            element.Name.LocalName == "ScrollViewer"
+            && (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "QuickAddContentScrollViewer");
+        var footer = layout.Descendants().Single(element =>
+            element.Name.LocalName == "DockPanel"
+            && (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "QuickAddFooterPanel");
+        var scrollNames = scrollViewer.Descendants()
+            .Select(element => (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")))
+            .Where(name => name is not null)
+            .ToArray();
+
+        Assert.Equal(new[] { "Auto", "*", "Auto" }, rows);
+        Assert.Equal("1", (string?)scrollViewer.Attribute("Grid.Row"));
+        Assert.Equal("Auto", (string?)scrollViewer.Attribute("VerticalScrollBarVisibility"));
+        Assert.Contains("QuickAddTextBox", scrollNames);
+        Assert.Contains("QuickAddTextErrorTextBlock", scrollNames);
+        Assert.Contains("QuickAddTimePickerBorder", scrollNames);
+        Assert.Contains("QuickAddTimeErrorTextBlock", scrollNames);
+        Assert.Equal("2", (string?)footer.Attribute("Grid.Row"));
+        Assert.DoesNotContain(footer.Ancestors(), element => ReferenceEquals(element, scrollViewer));
+    }
+
+    [Fact]
+    public void QuickAddPopover_ConstrainsHeightBeforeMeasuring()
+    {
+        var source = File.ReadAllText(FindTodoWidgetWindowCodeBehindPath());
+        var methodStart = source.IndexOf("private void PositionQuickAddPopoverNear", StringComparison.Ordinal);
+        var methodEnd = source.IndexOf("private Size MeasureQuickAddPopoverSize", methodStart, StringComparison.Ordinal);
+        var method = source[methodStart..methodEnd];
+
+        Assert.Contains("QuickAddPopover.MaxHeight = availableSize.Height;", method, StringComparison.Ordinal);
+        Assert.True(
+            method.IndexOf("QuickAddPopover.MaxHeight = availableSize.Height;", StringComparison.Ordinal)
+            < method.IndexOf("MeasureQuickAddPopoverSize()", StringComparison.Ordinal));
+        Assert.Contains(
+            "QuickAddPopover.Measure(new Size(QuickAddPopover.Width, QuickAddPopover.MaxHeight));",
+            source,
+            StringComparison.Ordinal);
     }
 
     [Fact]

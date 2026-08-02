@@ -42,4 +42,19 @@ public sealed class TodoTimeDisplayConverterTests
 
         Assert.Equal("09:30-10:45", text);
     }
+
+    [Fact]
+    public void Convert_LabelsOvernightRangeEndAsNextDay()
+    {
+        var converter = new TodoTimeDisplayConverter();
+        var todo = new TodoItem
+        {
+            StartTime = new TimeOnly(23, 0),
+            EndTime = new TimeOnly(1, 0)
+        };
+
+        var text = converter.Convert(todo, typeof(string), null!, CultureInfo.InvariantCulture);
+
+        Assert.Equal("23:00-次日\n01:00", text);
+    }
 }
