@@ -1,236 +1,240 @@
 # QingJian Project Status
 
-Last updated: 2026-07-19
+Last updated: 2026-08-02
 Stable branch: `develop`
-Latest feature merge at update time: `a88d550 merge: complete desktop todo widget`
+Latest feature merge at update time: `6f00bdb merge: integrate UI polish`
 
 ## Purpose
 
-This document is the handoff file for new Codex conversations. Before starting a new feature, read this file, then inspect the current git status and recent commits. Each conversation should own one independent feature branch and merge back to `develop` only after verification passes.
+This is the primary handoff document for new Codex conversations. Read it before changing code, then inspect `git status`, recent commits, and `git worktree list`. New feature work must start from `develop` in an independent branch/worktree and return to `develop` only after acceptance and verification.
 
 ## Project Summary
 
-QingJian is a native Windows sticky-notes app built with WPF, .NET 8, SQLite, EF Core, and WebView2.
+QingJian is a native Windows notes and desktop-todo application built with WPF, .NET 8, SQLite, EF Core, WebView2, Toast UI Editor, and Markdig. It stores all user data locally under `%LOCALAPPDATA%\QingJian`.
 
-The app currently supports a local notes workflow:
+The current application includes:
 
-- Launches into a full WPF notes UI.
-- Creates notes.
-- Edits note titles and note bodies.
-- Soft-deletes notes.
-- Persists data locally in SQLite.
-- Saves note changes automatically.
-- Uses a Toast UI based Markdown editor hosted in WebView2.
-- Provides a persistent desktop todo widget with shared 8-day, today-list, and monthly-calendar views.
+- A searchable, grouped notes workspace with favorite and folder organization.
+- Markdown and WYSIWYG editing with local image attachments.
+- Global-hotkey quick notes.
+- A configurable desktop todo widget with overnight todo support.
+- Folder management, batch note management, and a 30-day recycle bin.
+- Settings for startup, tray behavior, editing, hotkeys, todo appearance, and runtime/data information.
+- A system tray menu and save-aware minimize/close behavior.
 
 ## Current Architecture
 
 - `src/QingJian.App/App.xaml.cs`
-  - Creates the app data folder under `%LOCALAPPDATA%\QingJian`.
-  - Configures SQLite database access.
-  - Wires repositories, services, view models, and `MainWindow`.
+  - Creates application services and windows.
+  - Initializes SQLite, settings, the global hotkey, desktop todo coordinator, and tray lifecycle.
+  - Uses explicit application shutdown so tray residency can keep the process alive.
 
 - `src/QingJian.App/Data/`
-  - EF Core `AppDbContext`.
-  - `NoteRepository` for note persistence.
-  - `TodoRepository` for independent todo persistence.
+  - `AppDbContext` owns the local SQLite schema and compatibility initialization.
+  - `NoteRepository`, `FolderRepository`, and `TodoRepository` provide persistence and transactional workflows.
+  - Note timestamps are normalized consistently so reload, recycle, restore, and permanent deletion do not shift unrelated modification times.
 
 - `src/QingJian.App/Services/`
-  - `NoteService`: note creation, update, soft delete behavior.
-  - `TodoService`: todo creation, update, completion, deletion, and date/time ordering.
-  - `AppSettingsService`: JSON settings stored in `%LOCALAPPDATA%\QingJian\settings.json`.
-  - `AttachmentService`: local image attachment storage under `%LOCALAPPDATA%\QingJian\attachments`.
+  - `NoteService` handles create, update, favorite, move, soft delete, 30-day recycle queries, restore, permanent deletion, and batch operations.
+  - `FolderService` enforces single-level folders, unique normalized names, and the protected `未分类` system folder.
+  - `TodoService` handles todo persistence and ordering, including valid overnight ranges shorter than 24 hours.
+  - `AppSettingsService` stores JSON preferences in `%LOCALAPPDATA%\QingJian\settings.json`.
+  - `AttachmentService` copies local images into `%LOCALAPPDATA%\QingJian\attachments`.
 
 - `src/QingJian.App/ViewModels/`
-  - `MainViewModel` drives the note list, selected note, and commands.
+  - `MainViewModel` drives selection, navigation groups, search, sorting, favorites, folders, and batch actions.
+  - `FolderManagementViewModel`, `RecycleBinViewModel`, and `BatchSelectionState` own their focused workflows.
+  - Navigation helpers implement plain-text Markdown search, date grouping, and time/favorite ordering.
 
 - `src/QingJian.App/Views/`
-  - `MainWindow.xaml` and `MainWindow.xaml.cs` host the primary UI and bridge WPF with the WebView2 Markdown editor.
+  - `MainWindow` hosts the primary workspace and the WPF/WebView2 editor bridge.
+  - `FolderManagementWindow` and `FolderNameDialog` manage single-level folders.
+  - `RecycleBinWindow` presents deleted-note cards plus title/content preview and restore/permanent-delete commands.
+
+- `src/QingJian.App/Settings/`
+  - `SettingsWindow` exposes General, Editing, Quick Note, Desktop Todo, Data, and About tabs.
+  - `SettingsCoordinator` validates and applies preferences without partially saving invalid changes.
+  - Startup registration is managed through the current-user Windows Run registry key.
+
+- `src/QingJian.App/Tray/`
+  - `WindowsTrayIconService` owns the native tray icon and Chinese menu.
+  - `WindowBehaviorCoordinator` decides minimize, close, startup, restore, and explicit-exit behavior.
 
 - `src/QingJian.App/TodoWidgets/`
-  - `TodoWidgetCoordinator` owns startup restoration, visibility persistence, and window lifetime.
-  - `TodoWidgetViewModel` exposes the three shared-data modes, calendar navigation, and todo commands.
-  - `TodoWidgetWindow` is the borderless desktop-style WPF surface and owns transient popovers, drag handling, and mode-specific interaction.
-  - Focused helpers handle DPI-correct dragging, bottom Z-order placement, show-desktop recovery, popover positioning, display conversion, and draft validation.
-
-- `src/QingJian.App/Editor/`
-  - `EditorMessage`: parses messages posted from the WebView editor.
-  - `MarkdownEditorState`: guards editor sync and stale note updates.
+  - `TodoWidgetCoordinator` owns startup restoration, visibility, and window lifetime.
+  - `TodoWidgetViewModel` exposes 8-day, today-list, and monthly-calendar views over shared data.
+  - `TodoWidgetWindow` is a borderless, translucent, pale-green surface with scrollable add/edit popovers.
 
 - `src/QingJian.App/EditorAssets/`
-  - `index.html`, `editor-host.js`, `editor-host.css`.
-  - Vendored Toast UI editor assets for offline runtime use.
+  - `editor-host.js` and `editor-host.css` integrate vendored Toast UI Editor assets.
+  - Editor synchronization preserves the caret across autosave and prevents duplicate pasted images.
 
 ## Completed Features
 
-### MVP Notes
+### Main Notes Workspace
 
-- WPF main notes interface.
-- Create note.
-- Select note.
-- Edit note title.
-- Edit note body.
-- Soft delete selected note.
-- SQLite persistence.
-- Restore notes after restart.
+- Creates, selects, edits, autosaves, and soft-deletes notes.
+- New notes become selected in both the editor and navigation immediately.
+- Delete requires confirmation; the editor toolbar uses Chinese-tooltipped icon buttons.
+- Title `Tab` navigation moves directly into the body editor.
+- Toolbar actions switch Markdown/WYSIWYG mode, undo, redo, and delete.
+- `Ctrl+Y` restores an undone editor operation.
+- Body statistics count plain-text lines and characters, excluding Markdown syntax and editor-generated line-break markup.
+- Creation date and body statistics share the editor footer without a divider.
+- Navigation search ranks title matches ahead of body matches.
+- Time sorting is descending by last modification time.
+- Favorite sorting separates favorite/non-favorite notes, orders favorites by favorite time, and other notes by modification time.
+- Navigation cards show title, favorite star, modification time, and folder with balanced spacing.
+- Time navigation groups are `今天`, `过去30天`, months in the current year, and specific older years.
+- Notes can be favorited from navigation; the sort icon represents the active mode.
+- All relevant text prompts are Chinese except the product term `Markdown`.
 
-### Title Placeholder
+### Folder And Batch Management
 
-- New notes use the default title `未命名文件`.
-- The default title appears grey when not editing.
-- When preparing to edit the default title, the placeholder text clears.
-- If the user leaves the title empty, it returns to `未命名文件`.
+- Every note belongs to exactly one single-level folder.
+- `未分类` is the protected default/system folder.
+- Folders can be created, renamed, selected as filters, and deleted according to folder rules.
+- Notes can be moved between valid folders.
+- Batch mode supports checkbox selection, select-all/clear-selection behavior, moving, favorite changes, and confirmed deletion.
+- The batch clear-selection command uses a borderless trash icon consistent with the rest of the UI.
 
-### Markdown Editor
+### Recycle Bin
 
-- Note content is stored as Markdown.
-- Toast UI editor is hosted inside WebView2.
-- WYSIWYG and Markdown source modes are supported.
-- Last used editor mode is preserved globally across app restarts.
-- Chinese font compatibility is improved through editor CSS.
-- Markdown link handling is stabilized:
-  - Normal link clicks do not navigate away inside the editor.
-  - Ctrl/meta click requests external browser opening.
-  - WebView navigation away from the editor page is blocked.
-- Network image Markdown URLs are supported.
-- Local image attachments are supported:
-  - Toolbar image upload works.
-  - Dragging local image files into the editor works through the WebView path.
-  - Copy/paste image files works.
-  - Copy/paste clipboard screenshots/images works through native paste fallback.
-  - Inserted images are copied into `%LOCALAPPDATA%\QingJian\attachments`, so notes do not depend on the original file path.
+- The navigation footer includes a recycle-bin icon button.
+- The recycle bin lists notes deleted within the last 30 days using navigation-style cards without favorite stars.
+- Selecting a recycled note shows its title and content preview.
+- Restore recovers note content, folder, favorite state/time, creation time, and modification time.
+- Permanent deletion executes directly from the recycle-bin card.
+- Recycle actions preserve timestamps of both the affected note and unrelated active notes.
 
-### Hotkey Quick Notes
+### Markdown And Attachments
 
-- `Ctrl + Alt + N` opens a new independent quick-note window while the app is running.
-- Every shortcut press opens a separate quick-note window; there is no single-window cap.
-- Quick-note windows are borderless, clean white cards that stay out of the taskbar.
-- Quick-note windows have no normal title bar, minimize button, or close button.
-- The top strip remains the full draggable hit area.
-- Three short centered grip lines near the top visually indicate the draggable area without shrinking the hit area.
-- The lower-left footer shows the current body line and character count instead of shortcut hints.
-- Quick-note titles show a grey `标题` placeholder until the user focuses the title field.
-- Blank quick-note titles are generated from the first body line.
-- `Ctrl + Enter` saves the quick note.
-- `Esc` cancels; non-empty drafts ask before discarding and no longer re-enter close logic.
-- Quick notes save through the existing local note storage.
-- Visible main windows receive saved quick notes immediately; minimized windows do not steal focus.
+- Note content is stored as Markdown and edited through Toast UI Editor in WebView2.
+- WYSIWYG and Markdown source modes are supported and the selected default mode is configurable.
+- External links cannot navigate the embedded editor; Ctrl/meta-click opens them externally.
+- Network images and local attachments are supported.
+- Toolbar upload, drag/drop, copied files, and clipboard images all copy into app storage.
+- Clipboard insertion is deduplicated so one paste does not produce two images.
+- Caret position remains stable while body autosave and statistics updates run.
+
+### Quick Notes
+
+- A configurable global shortcut opens independent quick-note windows; the default is `Ctrl+Alt+N`.
+- The shortcut can be disabled or changed in Settings.
+- Quick notes have a borderless design, single-line drag indicator, body statistics, and lower footer actions.
+- Blank titles are generated from the first body line.
+- `Ctrl+Enter` saves; `Esc` cancels and protects non-empty drafts.
 
 ### Desktop Todo Widget
 
-- Todos are stored independently from notes in `TodoItems`.
-- QingJian shows a semi-transparent desktop todo widget by default on first launch after the feature is installed.
-- Later launches restore the prior visible or hidden state instead of always showing the widget.
-- The main window can show or hide the widget, and the widget exposes icon buttons for cycling modes, locking/unlocking, and hiding while unlocked.
-- The mode button cycles in the fixed order 8-day -> today-list -> monthly-calendar and previews the next mode in its tooltip.
-- All three modes share the same persisted todo data.
-- The 8-day preset is a 2x4 grid starting yesterday. Each day has quick add, wrapping checkbox/time/content previews, vertical overflow scrolling, and a click-opened management popover.
-- The today-list preset has centered quick add and rows for time, completion, wrapping content, edit, and delete, with vertical-only overflow scrolling.
-- The monthly-calendar preset supports previous month, next month, and return to current month. Dates outside the displayed month use muted text.
-- Calendar days expose quick add. Hovering a day for 2 seconds opens an interactive preview; moving between the day and preview keeps it open, and completion remains available from the preview.
-- Quick add and edit use separate hour/minute inputs and validate empty content, incomplete times, and invalid time ranges without hiding form actions.
-- Todos support no time, a single start time, or a start/end range.
-- Clicking the same 8-day/calendar date a second time closes its management popover.
-- Quick-add, management, and calendar-preview popovers close when modes change or the widget loses focus; unsaved form input is discarded.
-- Completed todos remain visible and move to the bottom of their day.
-- Completed preview text uses strikethrough in 8-day, today-list, and calendar-preview surfaces.
-- Widget visibility, mode, position, opacity, lock state, and calendar month are persisted in settings.
-- The widget is a normal borderless WPF window kept at the bottom of normal window Z order, not a WorkerW/Progman child.
-- Manual dragging is DPI-correct and available only while unlocked.
-- Show Desktop minimize messages are blocked/recovered so the widget remains available without the earlier wallpaper-blackout behavior.
+- The widget uses a semi-transparent pale-green background and icon-only chrome.
+- The main window and tray menu use explicit `显示桌面待办` / `隐藏桌面待办` actions according to current state.
+- 8-day, today-list, and monthly-calendar modes share persisted todo data.
+- Todo add/edit popovers are pale green and vertically scroll when content grows.
+- Todos support no time, one start time, a same-day range, or an overnight range.
+- When start time is later than end time, the end is interpreted as the next day if total duration is less than 24 hours; otherwise the draft is invalid.
+- Overnight todos are counted against their start date and display `次日`, with the end time wrapped where necessary.
+- Completion, ordering, calendar navigation, locking, position, opacity, mode, and visibility are persisted.
+- The widget remains an ordinary borderless WPF window at the bottom of normal window Z order rather than attaching to WorkerW/Progman.
 
-## Known Decisions
+### Settings, Tray, And Application Lifecycle
 
-- Editor mode persistence is global, not per note.
-- Local attachments are copied into app data, not referenced by original file path.
-- No unused attachment cleanup yet.
-- No image compression yet.
-- No cloud sync yet.
-- No dedicated attachment manager yet.
-- Markdown task checkbox click behavior in Markdown mode is intentionally postponed.
-- Font-size controls are postponed until after the current Markdown feature review.
-- Quick-note shortcut customization is postponed until a future shortcut settings page.
-- Tray residency is postponed; closing the main window exits the app, so the global shortcut only works while QingJian is running.
-- Quick-note color selection is postponed; quick notes currently use a white background and neutral border.
-- Desktop todo reminders and notifications are postponed.
-- Repeating todos and cross-day todos are postponed.
-- Desktop todo size presets are postponed; first version uses a fixed widget size.
-- A full main-window todo management page is postponed; first version edits todos from the widget.
-- Desktop todo does not attach to the Windows desktop WorkerW/Progman layer. It uses a borderless ordinary WPF window moved to the bottom of the normal window Z order to simulate staying on the desktop.
-- Eight-day hover preview is intentionally disabled; its normal rows and click-opened management popover provide those workflows.
+- Settings tabs: General, Editing, Quick Note, Desktop Todo, Data, and About.
+- General options include Windows startup, minimize to tray, close to tray, and start hidden when auto-started.
+- Defaults: minimize to tray on, close to tray off, startup hidden off.
+- Desktop todo settings include visibility, mode, opacity, lock state, and resetting position/appearance.
+- Data settings show the data folder and database/attachment/total size.
+- About reports app, .NET, and WebView2 runtime versions.
+- Tray double-click restores the main window.
+- Tray menu actions open the main window, create a quick note, show/hide desktop todo, and exit.
+- Minimize/close-to-tray saves real pending changes before hiding.
+- Explicit tray exit shuts down cleanly; tray setup failure falls back to ordinary window behavior.
+- `src/QingJian.App/Assets/qingjian.ico` is the EXE, tray, and all-window application icon.
 
-## Validation Commands
+## Data And Compatibility
 
-Run these before claiming a feature branch is complete:
+- Database: `%LOCALAPPDATA%\QingJian\qingjian.db`
+- Settings: `%LOCALAPPDATA%\QingJian\settings.json`
+- Attachments: `%LOCALAPPDATA%\QingJian\attachments`
+- Existing databases are upgraded in place by compatibility initialization; do not replace this with destructive recreation.
+- Deleted notes retain metadata required for lossless restoration.
+- Timestamps are persisted as UTC and converted only for display.
+
+## Known Decisions And Deferred Work
+
+- A note belongs to one folder only; nested folders are not supported.
+- Backup and restore are intentionally not included yet.
+- No cloud sync, attachment cleanup/compression, or dedicated attachment manager yet.
+- Markdown task-checkbox interaction in source mode remains deferred.
+- Font-size controls remain deferred.
+- Todo reminders/notifications and repeating todos remain deferred.
+- Overnight todos may cross midnight but never span 24 hours or more.
+- The desktop todo uses a fixed base size; size presets remain deferred.
+- The lower-left Settings, Folder, Batch, and Recycle Bin buttons are implemented; no separate main-window todo management page exists.
+
+## Validation Baseline
+
+Run sequentially from the repository root:
 
 ```powershell
-dotnet test
-dotnet build
+dotnet restore
+dotnet test -c Release --no-restore
+dotnet build -c Release --no-restore
+git diff --check
 ```
 
-For WPF development, avoid running `dotnet test` and `dotnet build` in parallel because generated output files can be locked.
+Do not run WPF test/build commands in parallel because generated files can lock each other. If the application is already running, avoid forcibly closing it when the user may have unsaved editing state.
 
-Run the app with:
+Latest verified merged baseline on 2026-08-02:
+
+- 429 tests passed, 0 failed, 0 skipped.
+- Release build completed with 0 warnings and 0 errors.
+
+Run the application with:
 
 ```powershell
 dotnet run --project src\QingJian.App\QingJian.App.csproj
 ```
 
-If the app is already running, close it before building or testing to avoid `QingJian.App.exe` file locks.
-
-Latest verified desktop-widget merge baseline on 2026-07-19: 204 tests passing, Release build with 0 warnings and 0 errors.
-
-## Branch Workflow
+## Branch And Worktree Workflow
 
 - `develop` is the stable integration branch.
-- New work should start from `develop`.
-- Use one feature branch per conversation/task.
-- Suggested branch names:
-  - `feature/font-size`
-  - `feature/hotkey-settings`
-  - `feature/desktop-schedule`
-- Do not commit directly to `develop` during feature work.
-- Merge back to `develop` only after tests/build pass and the user accepts the behavior.
+- Do not develop features directly on `develop`.
+- Create one independent `feature/*` branch and worktree per task.
+- Merge into `develop` only after tests/build pass and the user accepts the behavior.
+- When the user says `完成分支收尾工作`, merge the current feature branch into `develop`, then update this handoff document on `develop`.
+- Preserve unrelated or user-owned working-tree changes.
 
-Current worktree layout at the time this document was updated:
+Current layout at this update:
 
-- Main workspace: `C:\Users\Cristin\Desktop\VibeCoding\qingjian`
-- Current branch in main workspace: `develop`
-- Desktop todo widget work from `feature/desktop-todo-widget` is merged into `develop` at `a88d550`.
-- Separate existing worktree: `C:\Users\Cristin\Desktop\VibeCoding\qingjian-ui-polish` on `feature/ui-polish`; do not modify or remove it from unrelated tasks.
+- Main workspace: `C:\Users\Cristin\Desktop\VibeCoding\qingjian` on `develop`.
+- UI polish was merged into `develop` as `6f00bdb`.
+- Existing external worktree: `C:\Users\Cristin\Desktop\VibeCoding\qingjian-ui-polish` on the merged `feature/ui-polish` branch. Confirm ownership before removing it.
+- The main workspace has an existing untracked `outputs/` directory that must not be deleted as part of unrelated work.
 
-Always confirm the current layout with:
+Always check current state rather than relying only on this snapshot:
 
 ```powershell
-git worktree list
 git status --short --branch
+git log -5 --oneline --decorate
+git worktree list
 ```
 
 ## Suggested Prompt For New Conversations
 
-Use this at the start of a new task:
-
 ```text
-这是 qingjian 项目。请先阅读 docs/project-status.md、README.md、docs/superpowers/specs 和 docs/superpowers/plans，然后运行 git status、git branch、git log -5、git worktree list。以 develop 为基础，为本次功能创建独立分支。不要直接改 develop，完成并通过测试后再合并回 develop。
+这是 qingjian 项目。请先阅读 docs/project-status.md、README.md，以及与本次任务有关的 docs/superpowers/specs 和 docs/superpowers/plans；然后检查 git status、git log -5 和 git worktree list。以 develop 为基础创建独立 feature 分支和 worktree，不要直接在 develop 开发。完成并通过测试后，等待我确认再合并。
 ```
 
 ## Suggested Next Features
 
-- Desktop todo widget size presets.
-- Desktop todo reminders and notifications.
-- Font-size controls for selected text and future typing.
-- Shortcut settings page, including changing the quick-note hotkey.
-- Tray residency, if shortcuts should keep working after the main window is closed.
-- Optional quick-note color selection.
-- Attachment cleanup or attachment manager.
-- Markdown task checkbox click support, if needed later.
+- Backup and restore.
+- Desktop todo reminders/notifications and repeating todos.
+- Font-size controls.
+- Attachment cleanup, compression, or management.
+- Markdown task-checkbox interaction.
+- Desktop todo size presets or a full todo-management window.
 
 ## Update Rule
 
-Whenever a feature is merged into `develop`, update this file in the same merge or immediately after it:
-
-- Add completed features.
-- Add changed architecture decisions.
-- Add known issues or postponed work.
-- Update validation notes if commands change.
-- Update latest stable branch/commit information if useful.
+Whenever a feature is merged into `develop`, update this file immediately afterward with completed behavior, architectural changes, deferred work, verification results, and current worktree facts.
