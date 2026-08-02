@@ -170,10 +170,12 @@ public sealed class MainWindowXamlTests
         var listBox = xaml.Descendants().Single(element => element.Name.LocalName == "ListBox");
         var emptyText = FindNamedElement(xaml, "TextBlock", "NoSearchResultsTextBlock");
 
-        Assert.Contains(listBox.Descendants(), element =>
+        Assert.Equal(
+            "{Binding SelectedNote, Mode=OneWay}",
+            (string?)listBox.Attribute("SelectedItem"));
+        Assert.DoesNotContain(listBox.Descendants(), element =>
             element.Name.LocalName == "Setter"
-            && (string?)element.Attribute("Property") == "SelectedItem"
-            && (string?)element.Attribute("Value") == "{Binding SelectedNote, Mode=OneWay}");
+            && (string?)element.Attribute("Property") == "SelectedItem");
         Assert.Equal("NoteListBox_OnSelectionChanged", (string?)listBox.Attribute("SelectionChanged"));
         Assert.Equal("没有匹配的便签", (string?)emptyText.Attribute("Text"));
         Assert.Contains(emptyText.Descendants(), element =>

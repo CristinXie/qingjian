@@ -321,6 +321,7 @@
                 <Grid>
                     <ListBox x:Name="NoteListBox"
                              ItemsSource="{Binding NotesView}"
+                             SelectedItem="{Binding SelectedNote, Mode=OneWay}"
                              SelectionChanged="NoteListBox_OnSelectionChanged"
                              ItemContainerStyle="{StaticResource NoteListBoxItemStyle}"
                              BorderThickness="0"
@@ -330,7 +331,6 @@
                         <ListBox.Style>
                             <Style TargetType="ListBox">
                                 <Setter Property="SelectionMode" Value="Single" />
-                                <Setter Property="SelectedItem" Value="{Binding SelectedNote, Mode=OneWay}" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsBatchMode}" Value="True">
                                         <Setter Property="SelectionMode" Value="Multiple" />

@@ -66,9 +66,34 @@ public partial class MainWindow : Window
             if (args.PropertyName == nameof(MainViewModel.SelectedNote))
             {
                 UpdateTitlePlaceholderState();
+                SynchronizeNavigationSelection();
                 _ = LoadSelectedNoteIfChangedAsync();
             }
         };
+    }
+
+    private void SynchronizeNavigationSelection()
+    {
+        if (_viewModel.IsBatchMode)
+        {
+            return;
+        }
+
+        var selectedNote = _viewModel.SelectedNote;
+        NoteListBox.SelectedItem = selectedNote;
+        if (selectedNote is null)
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (!_viewModel.IsBatchMode && ReferenceEquals(_viewModel.SelectedNote, selectedNote))
+            {
+                NoteListBox.SelectedItem = selectedNote;
+                NoteListBox.ScrollIntoView(selectedNote);
+            }
+        });
     }
 
     private async void ToggleTodoWidgetButton_OnClick(object sender, RoutedEventArgs e)

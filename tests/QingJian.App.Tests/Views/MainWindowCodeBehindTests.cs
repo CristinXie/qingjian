@@ -28,6 +28,8 @@ public sealed class MainWindowCodeBehindTests
         Assert.Contains("ToggleFavoriteAsync", source, StringComparison.Ordinal);
         Assert.Contains("收藏状态保存失败", source, StringComparison.Ordinal);
         Assert.Contains("LoadSelectedNoteIfChangedAsync", source, StringComparison.Ordinal);
+        Assert.Contains("SynchronizeNavigationSelection", source, StringComparison.Ordinal);
+        Assert.Contains("NoteListBox.ScrollIntoView", source, StringComparison.Ordinal);
         Assert.Contains("_editorState.ShouldReloadSelection", source, StringComparison.Ordinal);
         Assert.Contains("public event EventHandler? SettingsRequested", source, StringComparison.Ordinal);
         Assert.Contains("SettingsButton_OnClick", source, StringComparison.Ordinal);
