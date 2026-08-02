@@ -48,5 +48,6 @@ public sealed class AppDbContextTests
         Assert.Equal(favoritedAt, saved.FavoritedAt);
         Assert.Equal("项目", saved.FolderName);
         Assert.False(saved.IsDeleted);
+        Assert.Null(saved.DeletedAt);
     }
 }

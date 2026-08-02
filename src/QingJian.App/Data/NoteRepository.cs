@@ -39,8 +39,18 @@ public sealed class NoteRepository : INoteRepository
                 cancellationToken);
         }
 
+        if (!columns.Contains("DeletedAt"))
+        {
+            await _dbContext.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE Notes ADD COLUMN DeletedAt TEXT NULL;",
+                cancellationToken);
+        }
+
         await _dbContext.Database.ExecuteSqlRawAsync(
             "UPDATE Notes SET FolderName = '未分类' WHERE FolderName IS NULL OR trim(FolderName) = '';",
+            cancellationToken);
+        await _dbContext.Database.ExecuteSqlRawAsync(
+            "UPDATE Notes SET DeletedAt = UpdatedAt WHERE IsDeleted = 1 AND DeletedAt IS NULL;",
             cancellationToken);
     }
 
@@ -49,6 +59,19 @@ public sealed class NoteRepository : INoteRepository
         return await _dbContext.Notes
             .Where(note => !note.IsDeleted)
             .OrderByDescending(note => note.UpdatedAt)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Note>> GetDeletedNotesAsync(
+        DateTime deletedSince,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Notes
+            .Where(note => note.IsDeleted
+                && note.DeletedAt != null
+                && note.DeletedAt >= deletedSince)
+            .OrderByDescending(note => note.DeletedAt)
             .AsNoTracking()
             .ToListAsync(cancellationToken);
     }
@@ -134,7 +157,7 @@ public sealed class NoteRepository : INoteRepository
             .SingleAsync(note => note.Id == noteId, cancellationToken);
 
         existing.IsDeleted = true;
-        existing.UpdatedAt = deletedAt;
+        existing.DeletedAt = deletedAt;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -154,7 +177,25 @@ public sealed class NoteRepository : INoteRepository
             .Where(note => ids.Contains(note.Id))
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(note => note.IsDeleted, true)
-                .SetProperty(note => note.UpdatedAt, deletedAt), cancellationToken);
+                .SetProperty(note => note.DeletedAt, deletedAt), cancellationToken);
+    }
+
+    public async Task RestoreAsync(string noteId, CancellationToken cancellationToken = default)
+    {
+        await _dbContext.Notes
+            .Where(note => note.Id == noteId && note.IsDeleted)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(note => note.IsDeleted, false)
+                .SetProperty(note => note.DeletedAt, (DateTime?)null), cancellationToken);
+    }
+
+    public async Task PermanentlyDeleteAsync(
+        string noteId,
+        CancellationToken cancellationToken = default)
+    {
+        await _dbContext.Notes
+            .Where(note => note.Id == noteId && note.IsDeleted)
+            .ExecuteDeleteAsync(cancellationToken);
     }
 
     private static string[] NormalizeIds(IReadOnlyCollection<string> noteIds)

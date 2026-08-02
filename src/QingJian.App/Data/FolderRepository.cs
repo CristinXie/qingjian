@@ -164,7 +164,7 @@ public sealed class FolderRepository : IFolderRepository
         }
 
         var notes = await _dbContext.Notes
-            .Where(note => note.FolderName == oldName)
+            .Where(note => !note.IsDeleted && note.FolderName == oldName)
             .ToListAsync(cancellationToken);
         foreach (var note in notes)
         {
@@ -196,7 +196,7 @@ public sealed class FolderRepository : IFolderRepository
         }
 
         var notes = await _dbContext.Notes
-            .Where(note => note.FolderName == folderName)
+            .Where(note => !note.IsDeleted && note.FolderName == folderName)
             .ToListAsync(cancellationToken);
         foreach (var note in notes)
         {

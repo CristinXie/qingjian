@@ -45,12 +45,13 @@ public sealed class NoteRepositoryTests
     }
 
     [Fact]
-    public async Task InitializeAsync_AddsFavoriteAndFolderColumnsToExistingNotesDatabase()
+    public async Task InitializeAsync_AddsMetadataColumnsAndBackfillsLegacyDeletionTime()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
         await CreateLegacyNotesTableAsync(connection);
         await InsertLegacyNoteAsync(connection, "legacy");
+        await InsertLegacyNoteAsync(connection, "legacy-deleted", isDeleted: true);
         var repository = CreateRepository(connection);
 
         await repository.InitializeAsync();
@@ -60,11 +61,14 @@ public sealed class NoteRepositoryTests
         Assert.Contains("IsFavorite", columns);
         Assert.Contains("FavoritedAt", columns);
         Assert.Contains("FolderName", columns);
+        Assert.Contains("DeletedAt", columns);
 
         var note = Assert.Single(await repository.GetActiveNotesAsync());
         Assert.False(note.IsFavorite);
         Assert.Null(note.FavoritedAt);
         Assert.Equal("未分类", note.FolderName);
+        var deleted = Assert.Single(await repository.GetDeletedNotesAsync(DateTime.MinValue));
+        Assert.Equal(new DateTime(2026, 7, 20, 9, 0, 0), deleted.DeletedAt);
     }
 
     [Fact]
@@ -166,7 +170,7 @@ public sealed class NoteRepositoryTests
     }
 
     [Fact]
-    public async Task BatchSoftDeleteAsync_UsesOneTimestampAndEmptyCollectionsAreNoOps()
+    public async Task BatchSoftDeleteAsync_UsesOneTimestampAndPreservesModificationMetadata()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
@@ -188,11 +192,68 @@ public sealed class NoteRepositoryTests
         Assert.All(loaded.Where(note => note.Id is "first" or "second"), note =>
         {
             Assert.True(note.IsDeleted);
-            Assert.Equal(deletedAt, note.UpdatedAt);
+            Assert.Equal(deletedAt, note.DeletedAt);
         });
+        Assert.Equal(updatedAt, loaded.Single(note => note.Id == "first").UpdatedAt);
+        Assert.Equal(updatedAt.AddMinutes(1), loaded.Single(note => note.Id == "second").UpdatedAt);
         var untouched = loaded.Single(note => note.Id == "untouched");
         Assert.False(untouched.IsDeleted);
+        Assert.Null(untouched.DeletedAt);
         Assert.Equal(updatedAt.AddMinutes(2), untouched.UpdatedAt);
+    }
+
+    [Fact]
+    public async Task GetDeletedNotesAsync_IncludesExactCutoffAndOrdersByDeletionTimeDescending()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var repository = CreateRepository(connection);
+        await repository.InitializeAsync();
+        var cutoff = new DateTime(2026, 7, 3, 12, 0, 0, DateTimeKind.Utc);
+        await repository.AddAsync(CreateNote("boundary", "Boundary", cutoff.AddDays(-1), false));
+        await repository.AddAsync(CreateNote("recent", "Recent", cutoff, false));
+        await repository.AddAsync(CreateNote("expired", "Expired", cutoff, false));
+        await repository.SoftDeleteAsync("boundary", cutoff);
+        await repository.SoftDeleteAsync("recent", cutoff.AddHours(2));
+        await repository.SoftDeleteAsync("expired", cutoff.AddTicks(-1));
+
+        var notes = await repository.GetDeletedNotesAsync(cutoff);
+
+        Assert.Equal(new[] { "recent", "boundary" }, notes.Select(note => note.Id));
+    }
+
+    [Fact]
+    public async Task RestoreAndPermanentDelete_ChangeOnlyTheRequestedDeletionLifecycle()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var repository = CreateRepository(connection);
+        await repository.InitializeAsync();
+        var updatedAt = new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc);
+        var deletedAt = updatedAt.AddHours(2);
+        var restore = CreateNote("restore", "Restore", updatedAt, false);
+        restore.Content = "Body";
+        restore.FolderName = "项目";
+        restore.IsFavorite = true;
+        restore.FavoritedAt = updatedAt.AddHours(1);
+        await repository.AddAsync(restore);
+        await repository.AddAsync(CreateNote("purge", "Purge", updatedAt, false));
+        await repository.SoftDeleteAsync("restore", deletedAt);
+        await repository.SoftDeleteAsync("purge", deletedAt);
+
+        await repository.RestoreAsync("restore");
+        await repository.PermanentlyDeleteAsync("purge");
+
+        await using var context = CreateContext(connection);
+        var restored = await context.Notes.SingleAsync(note => note.Id == "restore");
+        Assert.False(restored.IsDeleted);
+        Assert.Null(restored.DeletedAt);
+        Assert.Equal("Body", restored.Content);
+        Assert.Equal(updatedAt, restored.UpdatedAt);
+        Assert.Equal("项目", restored.FolderName);
+        Assert.True(restored.IsFavorite);
+        Assert.Equal(updatedAt.AddHours(1), restored.FavoritedAt);
+        Assert.False(await context.Notes.AnyAsync(note => note.Id == "purge"));
     }
 
     private static NoteRepository CreateRepository(SqliteConnection connection)
@@ -238,14 +299,18 @@ public sealed class NoteRepositoryTests
         await command.ExecuteNonQueryAsync();
     }
 
-    private static async Task InsertLegacyNoteAsync(SqliteConnection connection, string id)
+    private static async Task InsertLegacyNoteAsync(
+        SqliteConnection connection,
+        string id,
+        bool isDeleted = false)
     {
         await using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO Notes (Id, Title, Content, CreatedAt, UpdatedAt, IsDeleted)
-            VALUES ($id, 'Legacy', 'Body', '2026-07-20 08:00:00', '2026-07-20 09:00:00', 0);
+            VALUES ($id, 'Legacy', 'Body', '2026-07-20 08:00:00', '2026-07-20 09:00:00', $isDeleted);
             """;
         command.Parameters.AddWithValue("$id", id);
+        command.Parameters.AddWithValue("$isDeleted", isDeleted);
         await command.ExecuteNonQueryAsync();
     }
 

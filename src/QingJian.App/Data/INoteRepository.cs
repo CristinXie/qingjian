@@ -8,6 +8,10 @@ public interface INoteRepository
 
     Task<IReadOnlyList<Note>> GetActiveNotesAsync(CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<Note>> GetDeletedNotesAsync(
+        DateTime deletedSince,
+        CancellationToken cancellationToken = default);
+
     Task AddAsync(Note note, CancellationToken cancellationToken = default);
 
     Task UpdateAsync(Note note, CancellationToken cancellationToken = default);
@@ -33,4 +37,8 @@ public interface INoteRepository
         IReadOnlyCollection<string> noteIds,
         DateTime deletedAt,
         CancellationToken cancellationToken = default);
+
+    Task RestoreAsync(string noteId, CancellationToken cancellationToken = default);
+
+    Task PermanentlyDeleteAsync(string noteId, CancellationToken cancellationToken = default);
 }

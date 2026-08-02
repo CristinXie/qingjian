@@ -294,6 +294,16 @@ public sealed class NoteServiceTests
             return Task.FromResult<IReadOnlyList<Note>>(Notes.Where(note => !note.IsDeleted).ToList());
         }
 
+        public Task<IReadOnlyList<Note>> GetDeletedNotesAsync(
+            DateTime deletedSince,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<Note>>(Notes
+                .Where(note => note.IsDeleted && note.DeletedAt >= deletedSince)
+                .OrderByDescending(note => note.DeletedAt)
+                .ToList());
+        }
+
         public Task AddAsync(Note note, CancellationToken cancellationToken = default)
         {
             Notes.Add(note);
@@ -361,7 +371,7 @@ public sealed class NoteServiceTests
         {
             var note = Notes.Single(item => item.Id == noteId);
             note.IsDeleted = true;
-            note.UpdatedAt = deletedAt;
+            note.DeletedAt = deletedAt;
             return Task.CompletedTask;
         }
 
@@ -376,6 +386,20 @@ public sealed class NoteServiceTests
             }
 
             BatchDeleteUpdates.Add((noteIds.ToArray(), deletedAt));
+            return Task.CompletedTask;
+        }
+
+        public Task RestoreAsync(string noteId, CancellationToken cancellationToken = default)
+        {
+            var note = Notes.Single(item => item.Id == noteId);
+            note.IsDeleted = false;
+            note.DeletedAt = null;
+            return Task.CompletedTask;
+        }
+
+        public Task PermanentlyDeleteAsync(string noteId, CancellationToken cancellationToken = default)
+        {
+            Notes.RemoveAll(note => note.Id == noteId && note.IsDeleted);
             return Task.CompletedTask;
         }
     }

@@ -60,6 +60,9 @@ public sealed class AppDbContext : DbContext
                 .HasColumnType("INTEGER")
                 .HasDefaultValue(false)
                 .IsRequired();
+
+            entity.Property(note => note.DeletedAt)
+                .HasColumnType("TEXT");
         });
 
         modelBuilder.Entity<Folder>(entity =>

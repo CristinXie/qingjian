@@ -49,6 +49,8 @@ public sealed class Note : INotifyPropertyChanged
 
     public bool IsDeleted { get; set; }
 
+    public DateTime? DeletedAt { get; set; }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

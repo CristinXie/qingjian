@@ -45,7 +45,7 @@ public sealed class FolderRepositoryTests
     }
 
     [Fact]
-    public async Task RenameAsync_UpdatesActiveAndDeletedNotesInOneOperation()
+    public async Task RenameAsync_UpdatesActiveNotesAndPreservesDeletedFolderSnapshots()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
@@ -61,14 +61,15 @@ public sealed class FolderRepositoryTests
         db.ChangeTracker.Clear();
 
         var notes = await db.Notes.OrderBy(note => note.Id).ToListAsync();
-        Assert.All(notes, note => Assert.Equal("工作", note.FolderName));
+        Assert.Equal("工作", notes.Single(note => note.Id == "active").FolderName);
+        Assert.Equal("项目", notes.Single(note => note.Id == "deleted").FolderName);
         var renamed = await db.Folders.SingleAsync(item => item.Id == folder.Id);
         Assert.Equal("工作", renamed.Name);
         Assert.Equal(FolderNamePolicy.NormalizeKey("工作"), renamed.NormalizedName);
     }
 
     [Fact]
-    public async Task DeleteAsync_MovesAllNotesToUncategorizedAndRemovesFolder()
+    public async Task DeleteAsync_MovesActiveNotesAndPreservesDeletedFolderSnapshots()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
@@ -83,7 +84,9 @@ public sealed class FolderRepositoryTests
         await repository.DeleteAsync(folder.Id, "项目");
         db.ChangeTracker.Clear();
 
-        Assert.All(await db.Notes.ToListAsync(), note => Assert.Equal("未分类", note.FolderName));
+        var notes = await db.Notes.ToListAsync();
+        Assert.Equal("未分类", notes.Single(note => note.Id == "active").FolderName);
+        Assert.Equal("项目", notes.Single(note => note.Id == "deleted").FolderName);
         Assert.False(await db.Folders.AnyAsync(item => item.Id == folder.Id));
     }
 
