@@ -47,6 +47,14 @@ public sealed class MainWindowCodeBehindTests
         Assert.Contains("ApplyFolderFilterAsync", source, StringComparison.Ordinal);
         Assert.Contains("public async Task ApplyEditorModePreferenceAsync", source, StringComparison.Ordinal);
         Assert.Contains("await SetEditorModeAsync(_currentEditorMode)", source, StringComparison.Ordinal);
+        Assert.Contains("ApplyWindowBehaviorPreferences", source, StringComparison.Ordinal);
+        Assert.Contains("SetTrayAvailable", source, StringComparison.Ordinal);
+        Assert.Contains("ShowFromTray", source, StringComparison.Ordinal);
+        Assert.Contains("RequestApplicationExit", source, StringComparison.Ordinal);
+        Assert.Contains("ApplicationExitRequested", source, StringComparison.Ordinal);
+        Assert.Contains("StateChanged += OnStateChanged", source, StringComparison.Ordinal);
+        Assert.Contains("ShouldHideOnMinimize", source, StringComparison.Ordinal);
+        Assert.Contains("ShouldHideOnClose", source, StringComparison.Ordinal);
     }
 
     [Fact]

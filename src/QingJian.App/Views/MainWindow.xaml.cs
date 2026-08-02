@@ -11,8 +11,10 @@ using System.Windows.Media.Imaging;
 using Microsoft.Web.WebView2.Core;
 using QingJian.App.Editor;
 using QingJian.App.Models;
+using QingJian.App.Settings;
 using QingJian.App.Services;
 using QingJian.App.TodoWidgets;
+using QingJian.App.Tray;
 using QingJian.App.ViewModels;
 
 namespace QingJian.App.Views;
@@ -24,11 +26,16 @@ public partial class MainWindow : Window
     private readonly AttachmentService _attachmentService;
     private readonly TodoWidgetCoordinator _todoWidgetCoordinator;
     private readonly IFolderService _folderService;
+    private readonly WindowBehaviorCoordinator _windowBehaviorCoordinator;
     private readonly MarkdownEditorState _editorState = new();
     private bool _isEditorReady;
     private bool _isUpdatingTitlePlaceholder;
     private bool _isCloseSaveInProgress;
     private bool _isClosingAfterSave;
+    private bool _isWindowTransitionInProgress;
+    private bool _isExplicitExitRequested;
+    private bool _trayAvailable;
+    private WindowState _restoreWindowState = WindowState.Normal;
     private int _editorLoadVersion;
     private readonly SemaphoreSlim _editorLoadSemaphore = new(1, 1);
     private int _pendingEditorLoadVersion;
@@ -43,12 +50,31 @@ public partial class MainWindow : Window
 
     public event Func<Task>? RecycleBinRequested;
 
+    public event EventHandler? ApplicationExitRequested;
+
     public MainWindow(
         MainViewModel viewModel,
         AppSettingsService settingsService,
         AttachmentService attachmentService,
         TodoWidgetCoordinator todoWidgetCoordinator,
         IFolderService folderService)
+        : this(
+            viewModel,
+            settingsService,
+            attachmentService,
+            todoWidgetCoordinator,
+            folderService,
+            new WindowBehaviorCoordinator(WindowBehaviorPreferences.Default))
+    {
+    }
+
+    public MainWindow(
+        MainViewModel viewModel,
+        AppSettingsService settingsService,
+        AttachmentService attachmentService,
+        TodoWidgetCoordinator todoWidgetCoordinator,
+        IFolderService folderService,
+        WindowBehaviorCoordinator windowBehaviorCoordinator)
     {
         InitializeComponent();
         _viewModel = viewModel;
@@ -56,12 +82,14 @@ public partial class MainWindow : Window
         _attachmentService = attachmentService;
         _todoWidgetCoordinator = todoWidgetCoordinator;
         _folderService = folderService;
+        _windowBehaviorCoordinator = windowBehaviorCoordinator;
         DataContext = _viewModel;
         _todoWidgetCoordinator.VisibilityChanged += OnTodoWidgetVisibilityChanged;
         UpdateTodoWidgetToggleLabel(_todoWidgetCoordinator.IsVisible);
         Loaded += OnLoaded;
         Activated += (_, _) => _viewModel.RefreshNoteNavigation();
         Closing += OnClosing;
+        StateChanged += OnStateChanged;
         UpdateModeToggleToolTip();
         _viewModel.PropertyChanged += (_, args) =>
         {
@@ -72,6 +100,41 @@ public partial class MainWindow : Window
                 _ = LoadSelectedNoteIfChangedAsync();
             }
         };
+    }
+
+    public void ApplyWindowBehaviorPreferences(WindowBehaviorPreferences preferences)
+    {
+        _windowBehaviorCoordinator.Apply(preferences);
+    }
+
+    public void SetTrayAvailable(bool isAvailable)
+    {
+        _trayAvailable = isAvailable;
+    }
+
+    public void ShowFromTray()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(ShowFromTray);
+            return;
+        }
+
+        ShowInTaskbar = true;
+        Show();
+        WindowState = _restoreWindowState;
+        Activate();
+    }
+
+    public void StartHiddenInTray()
+    {
+        HideToTrayCore();
+    }
+
+    public void RequestApplicationExit()
+    {
+        _isExplicitExitRequested = true;
+        Close();
     }
 
     private void SynchronizeNavigationSelection()
@@ -501,6 +564,22 @@ public partial class MainWindow : Window
         await LoadSelectedNoteIfChangedAsync();
     }
 
+    private async void OnStateChanged(object? sender, EventArgs e)
+    {
+        if (WindowState != WindowState.Minimized)
+        {
+            _restoreWindowState = WindowState;
+            return;
+        }
+
+        if (!_windowBehaviorCoordinator.ShouldHideOnMinimize(_trayAvailable))
+        {
+            return;
+        }
+
+        await HideToTrayAfterSaveAsync("最小化到托盘前无法保存当前便签");
+    }
+
     private async void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (_isClosingAfterSave)
@@ -510,11 +589,18 @@ public partial class MainWindow : Window
 
         e.Cancel = true;
 
-        if (_isCloseSaveInProgress)
+        if (_isWindowTransitionInProgress)
         {
             return;
         }
 
+        if (_windowBehaviorCoordinator.ShouldHideOnClose(_isExplicitExitRequested, _trayAvailable))
+        {
+            await HideToTrayAfterSaveAsync("关闭前无法保存当前便签");
+            return;
+        }
+
+        _isWindowTransitionInProgress = true;
         _isCloseSaveInProgress = true;
 
         try
@@ -525,6 +611,7 @@ public partial class MainWindow : Window
             _isClosingAfterSave = true;
             Closing -= OnClosing;
             Close();
+            ApplicationExitRequested?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
@@ -538,7 +625,47 @@ public partial class MainWindow : Window
         finally
         {
             _isCloseSaveInProgress = false;
+            _isWindowTransitionInProgress = false;
         }
+    }
+
+    private async Task HideToTrayAfterSaveAsync(string errorTitle)
+    {
+        if (_isWindowTransitionInProgress)
+        {
+            return;
+        }
+
+        _isWindowTransitionInProgress = true;
+        _isCloseSaveInProgress = true;
+        try
+        {
+            await PullLatestEditorMarkdownAsync();
+            await _viewModel.SaveSelectedNoteNowAsync();
+            HideToTrayCore();
+        }
+        catch (Exception ex)
+        {
+            ShowFromTray();
+            MessageBox.Show(
+                this,
+                $"{errorTitle}。\n\n{ex.Message}",
+                "QingJian",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+        finally
+        {
+            _isCloseSaveInProgress = false;
+            _isWindowTransitionInProgress = false;
+        }
+    }
+
+    private void HideToTrayCore()
+    {
+        Hide();
+        ShowInTaskbar = false;
+        WindowState = _restoreWindowState;
     }
 
     private async Task PullLatestEditorMarkdownAsync()
