@@ -80,7 +80,12 @@ public sealed class TodoWidgetViewModelTests
         var service = new InMemoryTodoService();
         var viewModel = new TodoWidgetViewModel(
             service,
-            TodoWidgetPreferences.Default with { Mode = TodoWidgetMode.Calendar },
+            TodoWidgetPreferences.Default with
+            {
+                Mode = TodoWidgetMode.Calendar,
+                CalendarYear = today.Year,
+                CalendarMonth = today.Month
+            },
             () => today);
 
         viewModel.ShowNextMonth();
