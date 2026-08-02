@@ -69,13 +69,13 @@
                                                    VerticalAlignment="Center"
                                                    TextTrimming="CharacterEllipsis" />
                                         <TextBlock Grid.Column="1"
-                                                   Text="&#xE734;"
                                                    FontFamily="Segoe MDL2 Assets"
                                                    FontSize="14"
                                                    VerticalAlignment="Center"
                                                    Margin="8,0,0,0">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="&#xE734;" />
                                                     <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsFavorite}" Value="True">

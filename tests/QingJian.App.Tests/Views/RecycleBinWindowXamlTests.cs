@@ -28,6 +28,22 @@ public sealed class RecycleBinWindowXamlTests
         Assert.Contains(items.Descendants(), element =>
             element.Name.LocalName == "DataTrigger"
             && (string?)element.Attribute("Binding") == "{Binding IsFavorite}");
+        var favoriteIcon = items.Descendants().Single(element =>
+            element.Name.LocalName == "TextBlock"
+            && element.Descendants().Any(trigger =>
+                trigger.Name.LocalName == "DataTrigger"
+                && (string?)trigger.Attribute("Binding") == "{Binding IsFavorite}"));
+        Assert.Null(favoriteIcon.Attribute("Text"));
+        Assert.Contains(favoriteIcon.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Text"
+            && (string?)element.Attribute("Value") == "\uE734");
+        Assert.Contains(favoriteIcon.Descendants(), element =>
+            element.Name.LocalName == "DataTrigger"
+            && element.Descendants().Any(setter =>
+                setter.Name.LocalName == "Setter"
+                && (string?)setter.Attribute("Property") == "Text"
+                && (string?)setter.Attribute("Value") == "\uE735"));
         Assert.Equal("{StaticResource IconButtonStyle}", (string?)restore.Attribute("Style"));
         Assert.Equal("恢复", (string?)restore.Attribute("ToolTip"));
         Assert.Equal("RestoreNoteButton_OnClick", (string?)restore.Attribute("Click"));
