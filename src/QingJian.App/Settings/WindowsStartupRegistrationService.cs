@@ -15,7 +15,7 @@ public sealed class WindowsStartupRegistrationService : IStartupRegistrationServ
     public WindowsStartupRegistrationService(string executablePath, IStartupRegistry registry)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(executablePath);
-        _startupCommand = $"\"{executablePath.Trim('"')}\"";
+        _startupCommand = $"\"{executablePath.Trim('"')}\" --startup";
         _registry = registry;
     }
 

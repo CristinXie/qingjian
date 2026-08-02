@@ -7,6 +7,7 @@ using QingJian.App.QuickNotes;
 using QingJian.App.Services;
 using QingJian.App.Settings;
 using QingJian.App.TodoWidgets;
+using QingJian.App.Tray;
 using QingJian.App.ViewModels;
 using QingJian.App.Views;
 
@@ -19,6 +20,7 @@ public partial class App : Application
     private SettingsWindow? _settingsWindow;
     private FolderManagementWindow? _folderManagementWindow;
     private RecycleBinWindow? _recycleBinWindow;
+    private ITrayIconService? _trayIconService;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -44,13 +46,20 @@ public partial class App : Application
         var viewModel = new MainViewModel(noteService, folderService);
         var settingsService = new AppSettingsService(appDataFolder);
         var initialSettings = await settingsService.LoadAsync();
+        var windowBehaviorCoordinator = new WindowBehaviorCoordinator(initialSettings.WindowBehavior);
         var attachmentService = new AttachmentService(Path.Combine(appDataFolder, "attachments"));
         _todoWidgetCoordinator = new TodoWidgetCoordinator(
             todoService,
             settingsService,
             new WindowZOrderService());
 
-        var window = new MainWindow(viewModel, settingsService, attachmentService, _todoWidgetCoordinator, folderService);
+        var window = new MainWindow(
+            viewModel,
+            settingsService,
+            attachmentService,
+            _todoWidgetCoordinator,
+            folderService,
+            windowBehaviorCoordinator);
         MainWindow = window;
         var coordinator = new QuickNoteCoordinator(
             noteService,
@@ -73,13 +82,60 @@ public partial class App : Application
             _todoWidgetCoordinator,
             storageService,
             runtimeInfoProvider,
-            window.ApplyEditorModePreferenceAsync);
+            window.ApplyEditorModePreferenceAsync,
+            preferences =>
+            {
+                window.ApplyWindowBehaviorPreferences(preferences);
+                return Task.CompletedTask;
+            });
 
         window.SettingsRequested += (_, _) => ShowSettingsWindow(window, settingsCoordinator);
         window.FolderManagementRequested += async (_, _) =>
             await ShowFolderManagementWindowAsync(window, viewModel, folderService);
         window.RecycleBinRequested += () =>
             ShowRecycleBinWindowAsync(window, viewModel, noteService);
+        window.ApplicationExitRequested += (_, _) => Shutdown();
+
+        try
+        {
+            _trayIconService = new WindowsTrayIconService(executablePath);
+            _trayIconService.OpenMainWindowRequested += (_, _) => window.ShowFromTray();
+            _trayIconService.QuickNoteRequested += (_, _) => coordinator.OpenQuickNote();
+            _trayIconService.ToggleTodoRequested += async (_, _) =>
+            {
+                try
+                {
+                    await _todoWidgetCoordinator.ToggleWidgetVisibilityAsync();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        $"切换桌面待办失败。\n\n{ex.Message}",
+                        "QingJian",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                }
+            };
+            _trayIconService.ExitRequested += (_, _) => window.RequestApplicationExit();
+            _todoWidgetCoordinator.VisibilityChanged += (_, isVisible) =>
+                _trayIconService?.SetTodoVisible(isVisible);
+            _trayIconService.SetTodoVisible(_todoWidgetCoordinator.IsVisible);
+            _trayIconService.Show();
+            window.SetTrayAvailable(_trayIconService.IsAvailable);
+        }
+        catch (Exception ex)
+        {
+            _trayIconService?.Dispose();
+            _trayIconService = null;
+            window.SetTrayAvailable(false);
+            MessageBox.Show(
+                $"系统托盘初始化失败，将使用普通窗口行为。\n\n{ex.Message}",
+                "QingJian",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+
+        var shouldStartHidden = windowBehaviorCoordinator.ShouldStartHidden(e.Args, _trayIconService?.IsAvailable == true);
 
         window.SourceInitialized += (_, _) =>
         {
@@ -93,6 +149,11 @@ public partial class App : Application
                     "QingJian",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
+            }
+
+            if (shouldStartHidden)
+            {
+                window.Dispatcher.BeginInvoke(() => window.StartHiddenInTray());
             }
         };
 
@@ -223,6 +284,7 @@ public partial class App : Application
         }
 
         _hotkeyService?.Dispose();
+        _trayIconService?.Dispose();
         base.OnExit(e);
     }
 }

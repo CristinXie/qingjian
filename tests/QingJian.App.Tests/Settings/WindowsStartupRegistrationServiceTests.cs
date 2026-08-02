@@ -16,7 +16,7 @@ public sealed class WindowsStartupRegistrationServiceTests
         service.SetEnabled(true);
 
         Assert.Equal("QingJian", registry.LastSetName);
-        Assert.Equal("\"C:\\Program Files\\QingJian\\QingJian.App.exe\"", registry.LastSetValue);
+        Assert.Equal("\"C:\\Program Files\\QingJian\\QingJian.App.exe\" --startup", registry.LastSetValue);
         Assert.True(service.IsEnabled);
     }
 

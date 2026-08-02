@@ -14,15 +14,16 @@ public sealed class AppStartupWiringTests
         Assert.Contains("var todoService = new TodoService(todoRepository);", source, StringComparison.Ordinal);
         Assert.Contains("_todoWidgetCoordinator = new TodoWidgetCoordinator(", source, StringComparison.Ordinal);
         Assert.Contains("await _todoWidgetCoordinator.InitializeAsync();", source, StringComparison.Ordinal);
-        Assert.Contains("new MainWindow(viewModel, settingsService, attachmentService, _todoWidgetCoordinator, folderService)", source, StringComparison.Ordinal);
+        Assert.Contains("var window = new MainWindow(", source, StringComparison.Ordinal);
+        Assert.Contains("windowBehaviorCoordinator);", source, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void App_ShutsDownWhenMainWindowCloses()
+    public void App_UsesExplicitShutdownForTrayResidency()
     {
         var appXaml = XDocument.Load(FindAppXamlPath());
 
-        Assert.Equal("OnMainWindowClose", (string?)appXaml.Root?.Attribute("ShutdownMode"));
+        Assert.Equal("OnExplicitShutdown", (string?)appXaml.Root?.Attribute("ShutdownMode"));
     }
 
     [Fact]
@@ -43,6 +44,20 @@ public sealed class AppStartupWiringTests
         Assert.Contains("_settingsWindow.Activate()", source, StringComparison.Ordinal);
         Assert.Contains("new SettingsWindow(settingsCoordinator)", source, StringComparison.Ordinal);
         Assert.Contains("Environment.ProcessPath", source, StringComparison.Ordinal);
+        Assert.Contains("new WindowBehaviorCoordinator(initialSettings.WindowBehavior)", source, StringComparison.Ordinal);
+        Assert.Contains("new WindowsTrayIconService(executablePath)", source, StringComparison.Ordinal);
+        Assert.Contains("OpenMainWindowRequested", source, StringComparison.Ordinal);
+        Assert.Contains("QuickNoteRequested", source, StringComparison.Ordinal);
+        Assert.Contains("ToggleTodoRequested", source, StringComparison.Ordinal);
+        Assert.Contains("ExitRequested", source, StringComparison.Ordinal);
+        Assert.Contains("window.ShowFromTray()", source, StringComparison.Ordinal);
+        Assert.Contains("coordinator.OpenQuickNote()", source, StringComparison.Ordinal);
+        Assert.Contains("ToggleWidgetVisibilityAsync", source, StringComparison.Ordinal);
+        Assert.Contains("window.RequestApplicationExit()", source, StringComparison.Ordinal);
+        Assert.Contains("SetTodoVisible", source, StringComparison.Ordinal);
+        Assert.Contains("ShouldStartHidden(e.Args", source, StringComparison.Ordinal);
+        Assert.Contains("window.StartHiddenInTray()", source, StringComparison.Ordinal);
+        Assert.Contains("_trayIconService?.Dispose()", source, StringComparison.Ordinal);
     }
 
     [Fact]
