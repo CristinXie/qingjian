@@ -8,6 +8,9 @@ public interface INoteService
 
     Task<IReadOnlyList<Note>> GetActiveNotesAsync(CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<Note>> GetRecentlyDeletedNotesAsync(
+        CancellationToken cancellationToken = default);
+
     Task<Note> CreateNoteAsync(CancellationToken cancellationToken = default);
 
     Task<Note> CreateNoteInFolderAsync(string folderName, CancellationToken cancellationToken = default);
@@ -33,4 +36,8 @@ public interface INoteService
         CancellationToken cancellationToken = default);
 
     Task DeleteNoteAsync(Note note, CancellationToken cancellationToken = default);
+
+    Task RestoreNoteAsync(Note note, CancellationToken cancellationToken = default);
+
+    Task PermanentlyDeleteNoteAsync(Note note, CancellationToken cancellationToken = default);
 }

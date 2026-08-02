@@ -45,6 +45,12 @@ public sealed class NoteService : INoteService
         return _noteRepository.GetActiveNotesAsync(cancellationToken);
     }
 
+    public Task<IReadOnlyList<Note>> GetRecentlyDeletedNotesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return _noteRepository.GetDeletedNotesAsync(_utcNow().AddDays(-30), cancellationToken);
+    }
+
     public async Task<Note> CreateNoteAsync(CancellationToken cancellationToken = default)
     {
         return await CreateNoteCoreAsync(FolderNamePolicy.UncategorizedName, cancellationToken);
@@ -181,13 +187,31 @@ public sealed class NoteService : INoteService
         foreach (var note in changedNotes)
         {
             note.IsDeleted = true;
-            note.UpdatedAt = deletedAt;
+            note.DeletedAt = deletedAt;
         }
     }
 
-    public Task DeleteNoteAsync(Note note, CancellationToken cancellationToken = default)
+    public async Task DeleteNoteAsync(Note note, CancellationToken cancellationToken = default)
     {
-        return _noteRepository.SoftDeleteAsync(note.Id, _utcNow(), cancellationToken);
+        var deletedAt = _utcNow();
+        await _noteRepository.SoftDeleteAsync(note.Id, deletedAt, cancellationToken);
+        note.IsDeleted = true;
+        note.DeletedAt = deletedAt;
+    }
+
+    public async Task RestoreNoteAsync(Note note, CancellationToken cancellationToken = default)
+    {
+        await EnsureRestoreFolderExistsAsync(note.FolderName, cancellationToken);
+        await _noteRepository.RestoreAsync(note.Id, cancellationToken);
+        note.IsDeleted = false;
+        note.DeletedAt = null;
+    }
+
+    public Task PermanentlyDeleteNoteAsync(
+        Note note,
+        CancellationToken cancellationToken = default)
+    {
+        return _noteRepository.PermanentlyDeleteAsync(note.Id, cancellationToken);
     }
 
     private static Note[] NormalizeNotes(IReadOnlyCollection<Note> notes)
@@ -236,5 +260,29 @@ public sealed class NoteService : INoteService
         }
 
         return normalizedName;
+    }
+
+    private async Task EnsureRestoreFolderExistsAsync(
+        string folderName,
+        CancellationToken cancellationToken)
+    {
+        var normalizedName = FolderNamePolicy.NormalizeDisplayName(folderName);
+        if (string.Equals(
+                normalizedName,
+                FolderNamePolicy.UncategorizedName,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (_folderService is null)
+        {
+            throw new InvalidOperationException("文件夹服务未配置。");
+        }
+
+        if (!await _folderService.IsValidMoveTargetAsync(normalizedName, cancellationToken))
+        {
+            await _folderService.CreateAsync(normalizedName, cancellationToken);
+        }
     }
 }

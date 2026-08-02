@@ -218,8 +218,10 @@ public sealed class NoteServiceTests
         Assert.All(new[] { first, second }, note =>
         {
             Assert.True(note.IsDeleted);
-            Assert.Equal(deletedAt, note.UpdatedAt);
+            Assert.Equal(deletedAt, note.DeletedAt);
         });
+        Assert.Equal(deletedAt.AddHours(-2), first.UpdatedAt);
+        Assert.Equal(deletedAt.AddHours(-1), second.UpdatedAt);
         var update = Assert.Single(repository.BatchDeleteUpdates);
         Assert.Equal(new[] { "first", "second" }, update.NoteIds);
         Assert.Equal(deletedAt, update.DeletedAt);
@@ -244,6 +246,90 @@ public sealed class NoteServiceTests
         Assert.Empty(repository.BatchDeleteUpdates);
     }
 
+    [Fact]
+    public async Task GetRecentlyDeletedNotesAsync_UsesThirtyDayCutoff()
+    {
+        var now = new DateTime(2026, 8, 2, 12, 0, 0, DateTimeKind.Utc);
+        var repository = new InMemoryNoteRepository();
+        repository.Notes.AddRange(new[]
+        {
+            CreateDeletedNote("boundary", now.AddDays(-30)),
+            CreateDeletedNote("recent", now.AddDays(-1)),
+            CreateDeletedNote("expired", now.AddDays(-30).AddTicks(-1))
+        });
+        var service = new NoteService(repository, () => now);
+
+        var notes = await service.GetRecentlyDeletedNotesAsync();
+
+        Assert.Equal(now.AddDays(-30), Assert.Single(repository.DeletedQueryCutoffs));
+        Assert.Equal(new[] { "recent", "boundary" }, notes.Select(note => note.Id));
+    }
+
+    [Fact]
+    public async Task RestoreNoteAsync_RecreatesMissingFolderAndPreservesEveryNoteProperty()
+    {
+        var updatedAt = new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc);
+        var deletedAt = updatedAt.AddDays(1);
+        var favoritedAt = updatedAt.AddHours(-1);
+        var note = CreateDeletedNote("note", deletedAt);
+        note.Title = "标题";
+        note.Content = "正文";
+        note.CreatedAt = updatedAt.AddDays(-2);
+        note.UpdatedAt = updatedAt;
+        note.FolderName = "项目";
+        note.IsFavorite = true;
+        note.FavoritedAt = favoritedAt;
+        var repository = new InMemoryNoteRepository();
+        var folderService = new FakeFolderService();
+        var service = new NoteService(repository, folderService, () => deletedAt.AddHours(1));
+
+        await service.RestoreNoteAsync(note);
+
+        Assert.Equal(new[] { "项目" }, folderService.CreatedFolders);
+        Assert.Equal(new[] { "note" }, repository.RestoredIds);
+        Assert.False(note.IsDeleted);
+        Assert.Null(note.DeletedAt);
+        Assert.Equal("标题", note.Title);
+        Assert.Equal("正文", note.Content);
+        Assert.Equal(updatedAt.AddDays(-2), note.CreatedAt);
+        Assert.Equal(updatedAt, note.UpdatedAt);
+        Assert.Equal("项目", note.FolderName);
+        Assert.True(note.IsFavorite);
+        Assert.Equal(favoritedAt, note.FavoritedAt);
+    }
+
+    [Fact]
+    public async Task RestoreNoteAsync_KeepsDeletedStateWhenPersistenceFails()
+    {
+        var deletedAt = new DateTime(2026, 8, 1, 12, 0, 0, DateTimeKind.Utc);
+        var note = CreateDeletedNote("note", deletedAt);
+        var repository = new InMemoryNoteRepository
+        {
+            RestoreException = new InvalidOperationException("boom")
+        };
+        var service = new NoteService(repository, new FakeFolderService("未分类"), () => deletedAt);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.RestoreNoteAsync(note));
+
+        Assert.True(note.IsDeleted);
+        Assert.Equal(deletedAt, note.DeletedAt);
+    }
+
+    [Fact]
+    public async Task PermanentlyDeleteNoteAsync_DelegatesWithoutMutatingTheSnapshot()
+    {
+        var deletedAt = new DateTime(2026, 8, 1, 12, 0, 0, DateTimeKind.Utc);
+        var note = CreateDeletedNote("note", deletedAt);
+        var repository = new InMemoryNoteRepository();
+        var service = new NoteService(repository, () => deletedAt);
+
+        await service.PermanentlyDeleteNoteAsync(note);
+
+        Assert.Equal(new[] { "note" }, repository.PermanentlyDeletedIds);
+        Assert.True(note.IsDeleted);
+        Assert.Equal(deletedAt, note.DeletedAt);
+    }
+
     private static Note CreateNote(DateTime updatedAt, string id = "note-1")
     {
         return new Note
@@ -256,6 +342,14 @@ public sealed class NoteServiceTests
             FolderName = "未分类",
             IsDeleted = false
         };
+    }
+
+    private static Note CreateDeletedNote(string id, DateTime deletedAt)
+    {
+        var note = CreateNote(deletedAt.AddHours(-1), id);
+        note.IsDeleted = true;
+        note.DeletedAt = deletedAt;
+        return note;
     }
 
     private sealed class InMemoryNoteRepository : INoteRepository
@@ -274,6 +368,12 @@ public sealed class NoteServiceTests
 
         public List<(string[] NoteIds, DateTime DeletedAt)> BatchDeleteUpdates { get; } = new();
 
+        public List<DateTime> DeletedQueryCutoffs { get; } = new();
+
+        public List<string> RestoredIds { get; } = new();
+
+        public List<string> PermanentlyDeletedIds { get; } = new();
+
         public Exception? FavoriteUpdateException { get; init; }
 
         public Exception? FolderUpdateException { get; init; }
@@ -283,6 +383,8 @@ public sealed class NoteServiceTests
         public Exception? BatchFolderUpdateException { get; init; }
 
         public Exception? BatchDeleteUpdateException { get; init; }
+
+        public Exception? RestoreException { get; init; }
 
         public Task InitializeAsync(CancellationToken cancellationToken = default)
         {
@@ -298,6 +400,7 @@ public sealed class NoteServiceTests
             DateTime deletedSince,
             CancellationToken cancellationToken = default)
         {
+            DeletedQueryCutoffs.Add(deletedSince);
             return Task.FromResult<IReadOnlyList<Note>>(Notes
                 .Where(note => note.IsDeleted && note.DeletedAt >= deletedSince)
                 .OrderByDescending(note => note.DeletedAt)
@@ -391,15 +494,18 @@ public sealed class NoteServiceTests
 
         public Task RestoreAsync(string noteId, CancellationToken cancellationToken = default)
         {
-            var note = Notes.Single(item => item.Id == noteId);
-            note.IsDeleted = false;
-            note.DeletedAt = null;
+            if (RestoreException is not null)
+            {
+                throw RestoreException;
+            }
+
+            RestoredIds.Add(noteId);
             return Task.CompletedTask;
         }
 
         public Task PermanentlyDeleteAsync(string noteId, CancellationToken cancellationToken = default)
         {
-            Notes.RemoveAll(note => note.Id == noteId && note.IsDeleted);
+            PermanentlyDeletedIds.Add(noteId);
             return Task.CompletedTask;
         }
     }
@@ -416,13 +522,21 @@ public sealed class NoteServiceTests
 
         public int MoveTargetValidationCount { get; private set; }
 
+        public List<string> CreatedFolders { get; } = new();
+
         public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task<IReadOnlyList<FolderSummary>> GetFoldersAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<FolderSummary>>(Array.Empty<FolderSummary>());
+            => Task.FromResult<IReadOnlyList<FolderSummary>>(_folderNames
+                .Select(name => new FolderSummary(name, name, name == "未分类", 0, true))
+                .ToArray());
 
         public Task<FolderSummary> CreateAsync(string name, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
+        {
+            _folderNames.Add(name);
+            CreatedFolders.Add(name);
+            return Task.FromResult(new FolderSummary(name, name, false, 0, true));
+        }
 
         public Task<FolderSummary> RenameAsync(FolderSummary folder, string newName, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();

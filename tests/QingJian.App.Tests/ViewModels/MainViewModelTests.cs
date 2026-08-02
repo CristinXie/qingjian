@@ -667,7 +667,12 @@ public sealed class MainViewModelTests
 
         public Task<IReadOnlyList<Note>> GetActiveNotesAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IReadOnlyList<Note>>(_notes.ToList());
+            return Task.FromResult<IReadOnlyList<Note>>(_notes.Where(note => !note.IsDeleted).ToList());
+        }
+
+        public Task<IReadOnlyList<Note>> GetRecentlyDeletedNotesAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<Note>>(_notes.Where(note => note.IsDeleted).ToList());
         }
 
         public Task<Note> CreateNoteAsync(CancellationToken cancellationToken = default)
@@ -762,6 +767,24 @@ public sealed class MainViewModelTests
         public Task DeleteNoteAsync(Note note, CancellationToken cancellationToken = default)
         {
             DeletedIds.Add(note.Id);
+            _notes.RemoveAll(item => item.Id == note.Id);
+            return Task.CompletedTask;
+        }
+
+        public Task RestoreNoteAsync(Note note, CancellationToken cancellationToken = default)
+        {
+            note.IsDeleted = false;
+            note.DeletedAt = null;
+            if (!_notes.Contains(note))
+            {
+                _notes.Add(note);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task PermanentlyDeleteNoteAsync(Note note, CancellationToken cancellationToken = default)
+        {
             _notes.RemoveAll(item => item.Id == note.Id);
             return Task.CompletedTask;
         }

@@ -211,6 +211,11 @@ public sealed class QuickNoteCoordinatorTests
             return Task.FromResult<IReadOnlyList<Note>>(_notes.ToList());
         }
 
+        public Task<IReadOnlyList<Note>> GetRecentlyDeletedNotesAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<Note>>(_notes.Where(note => note.IsDeleted).ToList());
+        }
+
         public Task<Note> CreateNoteAsync(CancellationToken cancellationToken = default)
         {
             var note = new Note
@@ -321,6 +326,24 @@ public sealed class QuickNoteCoordinatorTests
             DeletedIds.Add(note.Id);
             _notes.Remove(note);
             note.IsDeleted = true;
+            return Task.CompletedTask;
+        }
+
+        public Task RestoreNoteAsync(Note note, CancellationToken cancellationToken = default)
+        {
+            note.IsDeleted = false;
+            note.DeletedAt = null;
+            if (!_notes.Contains(note))
+            {
+                _notes.Add(note);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task PermanentlyDeleteNoteAsync(Note note, CancellationToken cancellationToken = default)
+        {
+            _notes.RemoveAll(item => item.Id == note.Id);
             return Task.CompletedTask;
         }
     }
