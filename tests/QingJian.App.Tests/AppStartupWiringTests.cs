@@ -26,6 +26,19 @@ public sealed class AppStartupWiringTests
     }
 
     [Fact]
+    public void Startup_PassesLocalAppDataWebView2FolderToMainWindow()
+    {
+        var source = File.ReadAllText(FindAppSourcePath());
+
+        Assert.Contains(
+            "var webView2UserDataFolder = Path.Combine(appDataFolder, \"WebView2\");",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("windowBehaviorCoordinator,", source, StringComparison.Ordinal);
+        Assert.Contains("webView2UserDataFolder);", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Startup_WiresTodoWidgetCoordinator()
     {
         var source = File.ReadAllText(FindAppSourcePath());
@@ -35,7 +48,7 @@ public sealed class AppStartupWiringTests
         Assert.Contains("_todoWidgetCoordinator = new TodoWidgetCoordinator(", source, StringComparison.Ordinal);
         Assert.Contains("await _todoWidgetCoordinator.InitializeAsync();", source, StringComparison.Ordinal);
         Assert.Contains("var window = new MainWindow(", source, StringComparison.Ordinal);
-        Assert.Contains("windowBehaviorCoordinator);", source, StringComparison.Ordinal);
+        Assert.Contains("webView2UserDataFolder);", source, StringComparison.Ordinal);
     }
 
     [Fact]

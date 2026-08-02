@@ -41,6 +41,7 @@ public partial class App : Application
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "QingJian");
         Directory.CreateDirectory(appDataFolder);
+        var webView2UserDataFolder = Path.Combine(appDataFolder, "WebView2");
 
         var databasePath = Path.Combine(appDataFolder, "qingjian.db");
         var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -70,7 +71,8 @@ public partial class App : Application
             attachmentService,
             _todoWidgetCoordinator,
             folderService,
-            windowBehaviorCoordinator);
+            windowBehaviorCoordinator,
+            webView2UserDataFolder);
         MainWindow = window;
         _singleInstanceCoordinator.StartListening(
             () => Dispatcher.BeginInvoke(new Action(window.ShowFromTray)));

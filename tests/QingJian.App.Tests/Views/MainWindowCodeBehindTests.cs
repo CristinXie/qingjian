@@ -5,6 +5,18 @@ namespace QingJian.App.Tests.Views;
 public sealed class MainWindowCodeBehindTests
 {
     [Fact]
+    public void MainWindow_UsesExplicitLocalAppDataEnvironmentForWebView2()
+    {
+        var source = File.ReadAllText(FindMainWindowCodeBehindPath());
+
+        Assert.Contains("private readonly string _webView2UserDataFolder;", source, StringComparison.Ordinal);
+        Assert.Contains("CoreWebView2Environment.CreateAsync(", source, StringComparison.Ordinal);
+        Assert.Contains("userDataFolder: _webView2UserDataFolder", source, StringComparison.Ordinal);
+        Assert.Contains("EnsureCoreWebView2Async(environment)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("EnsureCoreWebView2Async();", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindow_WiresProtectedEditorWorkflowActions()
     {
         var source = File.ReadAllText(FindMainWindowCodeBehindPath());
