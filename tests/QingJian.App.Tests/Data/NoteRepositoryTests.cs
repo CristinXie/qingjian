@@ -256,6 +256,46 @@ public sealed class NoteRepositoryTests
         Assert.False(await context.Notes.AnyAsync(note => note.Id == "purge"));
     }
 
+    [Fact]
+    public async Task DeleteRestoreDelete_SynchronizesTrackedDeletionState()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var repository = CreateRepository(connection);
+        await repository.InitializeAsync();
+        var updatedAt = new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc);
+        var firstDeletion = updatedAt.AddHours(1);
+        var secondDeletion = updatedAt.AddHours(2);
+        await repository.AddAsync(CreateNote("note", "Note", updatedAt, false));
+
+        await repository.SoftDeleteAsync("note", firstDeletion);
+        await repository.RestoreAsync("note");
+        await repository.SoftDeleteAsync("note", secondDeletion);
+
+        await using var context = CreateContext(connection);
+        var note = await context.Notes.AsNoTracking().SingleAsync();
+        Assert.True(note.IsDeleted);
+        Assert.Equal(secondDeletion, note.DeletedAt);
+    }
+
+    [Fact]
+    public async Task PermanentlyDeleteAsync_DetachesTrackedEntity()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var repository = CreateRepository(connection);
+        await repository.InitializeAsync();
+        var updatedAt = new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc);
+        await repository.AddAsync(CreateNote("note", "Original", updatedAt, false));
+        await repository.SoftDeleteAsync("note", updatedAt.AddHours(1));
+
+        await repository.PermanentlyDeleteAsync("note");
+        await repository.AddAsync(CreateNote("note", "Replacement", updatedAt.AddHours(2), false));
+
+        var loaded = Assert.Single(await repository.GetActiveNotesAsync());
+        Assert.Equal("Replacement", loaded.Title);
+    }
+
     private static NoteRepository CreateRepository(SqliteConnection connection)
     {
         return new NoteRepository(CreateContext(connection));

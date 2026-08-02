@@ -187,6 +187,17 @@ public sealed class NoteRepository : INoteRepository
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(note => note.IsDeleted, false)
                 .SetProperty(note => note.DeletedAt, (DateTime?)null), cancellationToken);
+
+        foreach (var entry in _dbContext.ChangeTracker.Entries<Note>()
+                     .Where(entry => entry.Entity.Id == noteId))
+        {
+            var isDeleted = entry.Property(note => note.IsDeleted);
+            isDeleted.CurrentValue = false;
+            isDeleted.OriginalValue = false;
+            var deletedAt = entry.Property(note => note.DeletedAt);
+            deletedAt.CurrentValue = null;
+            deletedAt.OriginalValue = null;
+        }
     }
 
     public async Task PermanentlyDeleteAsync(
@@ -196,6 +207,13 @@ public sealed class NoteRepository : INoteRepository
         await _dbContext.Notes
             .Where(note => note.Id == noteId && note.IsDeleted)
             .ExecuteDeleteAsync(cancellationToken);
+
+        foreach (var entry in _dbContext.ChangeTracker.Entries<Note>()
+                     .Where(entry => entry.Entity.Id == noteId)
+                     .ToArray())
+        {
+            entry.State = EntityState.Detached;
+        }
     }
 
     private static string[] NormalizeIds(IReadOnlyCollection<string> noteIds)
