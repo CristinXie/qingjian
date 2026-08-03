@@ -1,8 +1,8 @@
 # QingJian Project Status
 
-Last updated: 2026-08-02
+Last updated: 2026-08-03
 Stable branch: `develop`
-Latest feature merge at update time: `6f00bdb merge: integrate UI polish`
+Latest feature merge at update time: `49d59de merge: integrate single-instance setup`
 
 ## Purpose
 
@@ -28,6 +28,13 @@ The current application includes:
   - Creates application services and windows.
   - Initializes SQLite, settings, the global hotkey, desktop todo coordinator, and tray lifecycle.
   - Uses explicit application shutdown so tray residency can keep the process alive.
+
+- `src/QingJian.App/Lifecycle/`
+  - `SingleInstanceCoordinator` enforces one running QingJian instance and activates the existing window when a second launch is attempted.
+
+- `installer/` and `scripts/`
+  - `QingJian.iss` defines the Windows installer payload and shortcuts.
+  - `build-installer.ps1` bootstraps Inno Setup through NuGet and builds a distributable installer.
 
 - `src/QingJian.App/Data/`
   - `AppDbContext` owns the local SQLite schema and compatibility initialization.
@@ -150,6 +157,9 @@ The current application includes:
 - Minimize/close-to-tray saves real pending changes before hiding.
 - Explicit tray exit shuts down cleanly; tray setup failure falls back to ordinary window behavior.
 - `src/QingJian.App/Assets/qingjian.ico` is the EXE, tray, and all-window application icon.
+- A second launch activates the existing instance instead of opening another application process.
+- WebView2 user data is stored under the QingJian local application data directory.
+- The repository includes an Inno Setup definition and a PowerShell installer build script.
 
 ## Data And Compatibility
 
@@ -190,6 +200,11 @@ Latest verified merged baseline on 2026-08-02:
 - 429 tests passed, 0 failed, 0 skipped.
 - Release build completed with 0 warnings and 0 errors.
 
+Latest merged baseline on 2026-08-03:
+
+- 440 tests passed, 0 failed, 0 skipped after merging single-instance and installer support.
+- Release build completed with 0 warnings and 0 errors after the merge.
+
 Run the application with:
 
 ```powershell
@@ -209,8 +224,10 @@ Current layout at this update:
 
 - Main workspace: `C:\Users\Cristin\Desktop\VibeCoding\qingjian` on `develop`.
 - UI polish was merged into `develop` as `6f00bdb`.
+- Single-instance and installer support was merged into `develop` as `49d59de`.
 - Existing external worktree: `C:\Users\Cristin\Desktop\VibeCoding\qingjian-ui-polish` on the merged `feature/ui-polish` branch. Confirm ownership before removing it.
-- The main workspace has an existing untracked `outputs/` directory that must not be deleted as part of unrelated work.
+- Existing external worktree: `C:\Users\Cristin\Desktop\VibeCoding\qingjian-single-instance-setup` on the merged `feature/single-instance-setup` branch. Confirm ownership before removing it.
+- The application icon source images under `outputs/image2/` are tracked in `f99f792`.
 
 Always check current state rather than relying only on this snapshot:
 
