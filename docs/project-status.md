@@ -1,7 +1,7 @@
 # QingJian Project Status
 
 Last updated: 2026-08-03
-Stable branch: `develop`
+Stable public branch: `main`
 Latest feature merge at update time: `49d59de merge: integrate single-instance setup`
 
 ## Purpose
@@ -213,7 +213,7 @@ dotnet run --project src\QingJian.App\QingJian.App.csproj
 
 ## Branch And Worktree Workflow
 
-- `develop` is the stable integration branch.
+- `develop` is the stable integration branch; `main` is the public release branch.
 - Do not develop features directly on `develop`.
 - Create one independent `feature/*` branch and worktree per task.
 - Merge into `develop` only after tests/build pass and the user accepts the behavior.
@@ -222,7 +222,7 @@ dotnet run --project src\QingJian.App\QingJian.App.csproj
 
 Current layout at this update:
 
-- Main workspace: `C:\Users\Cristin\Desktop\VibeCoding\qingjian` on `develop`.
+- Main workspace: `C:\Users\Cristin\Desktop\VibeCoding\qingjian` on `main`.
 - UI polish was merged into `develop` as `6f00bdb`.
 - Single-instance and installer support was merged into `develop` as `49d59de`.
 - Existing external worktree: `C:\Users\Cristin\Desktop\VibeCoding\qingjian-ui-polish` on the merged `feature/ui-polish` branch. Confirm ownership before removing it.
