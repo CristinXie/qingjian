@@ -27,6 +27,7 @@ public partial class MainWindow : Window
     private readonly TodoWidgetCoordinator _todoWidgetCoordinator;
     private readonly IFolderService _folderService;
     private readonly WindowBehaviorCoordinator _windowBehaviorCoordinator;
+    private readonly string _webView2UserDataFolder;
     private readonly MarkdownEditorState _editorState = new();
     private bool _isEditorReady;
     private bool _isUpdatingTitlePlaceholder;
@@ -64,7 +65,11 @@ public partial class MainWindow : Window
             attachmentService,
             todoWidgetCoordinator,
             folderService,
-            new WindowBehaviorCoordinator(WindowBehaviorPreferences.Default))
+            new WindowBehaviorCoordinator(WindowBehaviorPreferences.Default),
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "QingJian",
+                "WebView2"))
     {
     }
 
@@ -75,6 +80,28 @@ public partial class MainWindow : Window
         TodoWidgetCoordinator todoWidgetCoordinator,
         IFolderService folderService,
         WindowBehaviorCoordinator windowBehaviorCoordinator)
+        : this(
+            viewModel,
+            settingsService,
+            attachmentService,
+            todoWidgetCoordinator,
+            folderService,
+            windowBehaviorCoordinator,
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "QingJian",
+                "WebView2"))
+    {
+    }
+
+    public MainWindow(
+        MainViewModel viewModel,
+        AppSettingsService settingsService,
+        AttachmentService attachmentService,
+        TodoWidgetCoordinator todoWidgetCoordinator,
+        IFolderService folderService,
+        WindowBehaviorCoordinator windowBehaviorCoordinator,
+        string webView2UserDataFolder)
     {
         InitializeComponent();
         _viewModel = viewModel;
@@ -83,6 +110,7 @@ public partial class MainWindow : Window
         _todoWidgetCoordinator = todoWidgetCoordinator;
         _folderService = folderService;
         _windowBehaviorCoordinator = windowBehaviorCoordinator;
+        _webView2UserDataFolder = webView2UserDataFolder;
         DataContext = _viewModel;
         _todoWidgetCoordinator.VisibilityChanged += OnTodoWidgetVisibilityChanged;
         UpdateTodoWidgetToggleLabel(_todoWidgetCoordinator.IsVisible);
@@ -117,6 +145,11 @@ public partial class MainWindow : Window
         if (!Dispatcher.CheckAccess())
         {
             Dispatcher.Invoke(ShowFromTray);
+            return;
+        }
+
+        if (_isClosingAfterSave || _isExplicitExitRequested)
+        {
             return;
         }
 
@@ -580,7 +613,7 @@ public partial class MainWindow : Window
         await HideToTrayAfterSaveAsync("最小化到托盘前无法保存当前便签");
     }
 
-    private async void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (_isClosingAfterSave)
         {
@@ -594,19 +627,27 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_windowBehaviorCoordinator.ShouldHideOnClose(_isExplicitExitRequested, _trayAvailable))
-        {
-            await HideToTrayAfterSaveAsync("关闭前无法保存当前便签");
-            return;
-        }
-
         _isWindowTransitionInProgress = true;
+        var hideToTray = _windowBehaviorCoordinator.ShouldHideOnClose(
+            _isExplicitExitRequested,
+            _trayAvailable);
+        Dispatcher.BeginInvoke(new Action(() => _ = CompleteCloseAfterSaveAsync(hideToTray)));
+    }
+
+    private async Task CompleteCloseAfterSaveAsync(bool hideToTray)
+    {
         _isCloseSaveInProgress = true;
 
         try
         {
             await PullLatestEditorMarkdownAsync();
             await _viewModel.SaveSelectedNoteNowAsync();
+
+            if (hideToTray)
+            {
+                HideToTrayCore();
+                return;
+            }
 
             _isClosingAfterSave = true;
             Closing -= OnClosing;
@@ -615,6 +656,12 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            _isExplicitExitRequested = false;
+            if (!IsVisible && !_isClosingAfterSave)
+            {
+                ShowFromTray();
+            }
+
             MessageBox.Show(
                 this,
                 $"关闭前无法保存当前便签。\n\n{ex.Message}",
@@ -708,7 +755,9 @@ public partial class MainWindow : Window
         try
         {
             MarkdownWebView.WebMessageReceived += MarkdownWebView_OnWebMessageReceived;
-            await MarkdownWebView.EnsureCoreWebView2Async();
+            var environment = await CoreWebView2Environment.CreateAsync(
+                userDataFolder: _webView2UserDataFolder);
+            await MarkdownWebView.EnsureCoreWebView2Async(environment);
             MarkdownWebView.CoreWebView2.SetVirtualHostNameToFolderMapping(
                 AttachmentService.AssetHostName,
                 _attachmentService.AttachmentFolder,

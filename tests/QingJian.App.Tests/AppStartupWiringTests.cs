@@ -6,6 +6,39 @@ namespace QingJian.App.Tests;
 public sealed class AppStartupWiringTests
 {
     [Fact]
+    public void Startup_GatesSecondaryInstanceBeforeApplicationServices()
+    {
+        var source = File.ReadAllText(FindAppSourcePath());
+        var gateIndex = source.IndexOf("SingleInstanceCoordinator.Create", StringComparison.Ordinal);
+        var databaseIndex = source.IndexOf("new AppDbContext", StringComparison.Ordinal);
+
+        Assert.True(gateIndex >= 0, "Single-instance coordinator is not created during startup.");
+        Assert.True(databaseIndex >= 0, "Database context construction was not found.");
+        Assert.True(gateIndex < databaseIndex, "Single-instance gating must precede database initialization.");
+        Assert.Contains("if (!_singleInstanceCoordinator.IsPrimary)", source, StringComparison.Ordinal);
+        Assert.Contains("_singleInstanceCoordinator.NotifyPrimary();", source, StringComparison.Ordinal);
+        Assert.Contains("Shutdown();", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "Dispatcher.BeginInvoke(new Action(window.ShowFromTray))",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("_singleInstanceCoordinator?.Dispose();", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Startup_PassesLocalAppDataWebView2FolderToMainWindow()
+    {
+        var source = File.ReadAllText(FindAppSourcePath());
+
+        Assert.Contains(
+            "var webView2UserDataFolder = Path.Combine(appDataFolder, \"WebView2\");",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("windowBehaviorCoordinator,", source, StringComparison.Ordinal);
+        Assert.Contains("webView2UserDataFolder);", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Startup_WiresTodoWidgetCoordinator()
     {
         var source = File.ReadAllText(FindAppSourcePath());
@@ -15,7 +48,7 @@ public sealed class AppStartupWiringTests
         Assert.Contains("_todoWidgetCoordinator = new TodoWidgetCoordinator(", source, StringComparison.Ordinal);
         Assert.Contains("await _todoWidgetCoordinator.InitializeAsync();", source, StringComparison.Ordinal);
         Assert.Contains("var window = new MainWindow(", source, StringComparison.Ordinal);
-        Assert.Contains("windowBehaviorCoordinator);", source, StringComparison.Ordinal);
+        Assert.Contains("webView2UserDataFolder);", source, StringComparison.Ordinal);
     }
 
     [Fact]
