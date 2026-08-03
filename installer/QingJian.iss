@@ -39,6 +39,8 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 [Files]
 Source: "{#PublishDir}\QingJian.App.exe"; DestDir: "{app}"; DestName: "QingJian.exe"; Flags: ignoreversion
 Source: "{#WebView2Bootstrapper}"; DestDir: "{tmp}"; DestName: "MicrosoftEdgeWebview2Setup.exe"; Flags: deleteafterinstall
+Source: "{#SourcePath}..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE"; Flags: ignoreversion
+Source: "{#SourcePath}..\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; DestName: "THIRD-PARTY-NOTICES.md"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\QingJian"; Filename: "{app}\QingJian.exe"; WorkingDir: "{app}"

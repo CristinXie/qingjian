@@ -78,6 +78,22 @@ dotnet test
 dotnet run --project src\QingJian.App\QingJian.App.csproj
 ```
 
+## Releases And Installer
+
+Download the latest Windows installer from the
+[GitHub Releases page](https://github.com/CristinXie/qingjian/releases).
+The installer targets x64 Windows and installs the Microsoft Edge WebView2
+Runtime when it is not already available.
+
+To build the installer locally, run:
+
+```powershell
+.\scripts\build-installer.ps1
+```
+
+The script downloads and hash-verifies the pinned Inno Setup compiler and the
+WebView2 Evergreen Bootstrapper, then publishes a self-contained x64 build.
+
 ## Data Location
 
 QingJian stores its database in:
