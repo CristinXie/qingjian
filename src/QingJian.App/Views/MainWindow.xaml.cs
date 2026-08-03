@@ -148,6 +148,11 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (_isClosingAfterSave || _isExplicitExitRequested)
+        {
+            return;
+        }
+
         ShowInTaskbar = true;
         Show();
         WindowState = _restoreWindowState;
@@ -608,7 +613,7 @@ public partial class MainWindow : Window
         await HideToTrayAfterSaveAsync("最小化到托盘前无法保存当前便签");
     }
 
-    private async void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (_isClosingAfterSave)
         {
@@ -622,19 +627,27 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_windowBehaviorCoordinator.ShouldHideOnClose(_isExplicitExitRequested, _trayAvailable))
-        {
-            await HideToTrayAfterSaveAsync("关闭前无法保存当前便签");
-            return;
-        }
-
         _isWindowTransitionInProgress = true;
+        var hideToTray = _windowBehaviorCoordinator.ShouldHideOnClose(
+            _isExplicitExitRequested,
+            _trayAvailable);
+        Dispatcher.BeginInvoke(new Action(() => _ = CompleteCloseAfterSaveAsync(hideToTray)));
+    }
+
+    private async Task CompleteCloseAfterSaveAsync(bool hideToTray)
+    {
         _isCloseSaveInProgress = true;
 
         try
         {
             await PullLatestEditorMarkdownAsync();
             await _viewModel.SaveSelectedNoteNowAsync();
+
+            if (hideToTray)
+            {
+                HideToTrayCore();
+                return;
+            }
 
             _isClosingAfterSave = true;
             Closing -= OnClosing;
@@ -643,6 +656,12 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            _isExplicitExitRequested = false;
+            if (!IsVisible && !_isClosingAfterSave)
+            {
+                ShowFromTray();
+            }
+
             MessageBox.Show(
                 this,
                 $"关闭前无法保存当前便签。\n\n{ex.Message}",
