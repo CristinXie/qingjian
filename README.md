@@ -1,10 +1,10 @@
-# QingJian / 清简
+# QingJian / 青简
 
 [![CI](https://github.com/CristinXie/qingjian/actions/workflows/ci.yml/badge.svg)](https://github.com/CristinXie/qingjian/actions/workflows/ci.yml)
 
 QingJian is a local-first Windows notes and desktop todo app. It is built with WPF and .NET 8, and keeps notes, settings, and attachments on the local machine.
 
-清简是一款本地优先的 Windows 笔记与桌面待办应用，基于 WPF 和 .NET 8 构建。笔记、设置和附件默认保存在本机。
+青简是一款本地优先的 Windows 笔记与桌面待办应用，基于 WPF 和 .NET 8 构建。笔记、设置和附件默认保存在本机。
 
 ## Features / 功能
 
