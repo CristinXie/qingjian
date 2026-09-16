@@ -1,111 +1,91 @@
-# QingJian
+# QingJian / 清简
 
-QingJian is a native Windows notes and desktop-todo app built with WPF, .NET 8, SQLite, EF Core, WebView2, and Toast UI Editor.
+[![CI](https://github.com/CristinXie/qingjian/actions/workflows/ci.yml/badge.svg)](https://github.com/CristinXie/qingjian/actions/workflows/ci.yml)
 
-## Notes Workspace
+QingJian is a local-first Windows notes and desktop todo app. It is built with WPF and .NET 8, and keeps notes, settings, and attachments on the local machine.
 
-- Create, edit, autosave, favorite, organize, search, and soft-delete notes.
-- Switch between Markdown and WYSIWYG editing with undo/redo and plain-text statistics.
-- Group navigation by modification date or sort by favorites.
-- Organize each note in one single-level folder.
-- Apply move, favorite, and delete actions in batch mode.
-- Restore full note metadata from the 30-day recycle bin or delete notes permanently.
+清简是一款本地优先的 Windows 笔记与桌面待办应用，基于 WPF 和 .NET 8 构建。笔记、设置和附件默认保存在本机。
 
-## Quick Note Shortcut
+## Features / 功能
 
-While QingJian is running, press `Ctrl + Alt + N` to open a quick-note card near the mouse pointer.
+- Markdown and WYSIWYG editing, autosave, search, favorites, folders, batch actions, and a 30-day recycle bin.
+- Markdown 与所见即所得编辑、自动保存、搜索、收藏夹、文件夹、批量操作和 30 天回收站。
+- Global quick notes with a configurable shortcut (`Ctrl + Alt + N` by default).
+- 全局快速笔记，快捷键可配置（默认 `Ctrl + Alt + N`）。
+- A configurable desktop todo widget with 8-day, today-list, and monthly-calendar views.
+- 可配置的桌面待办小组件，支持八日、今日列表和月历视图。
+- System tray, Windows startup, single-instance activation, and a self-contained x64 installer.
+- 系统托盘、Windows 开机启动、单实例激活及 x64 安装包。
+- Local image attachments through toolbar upload, drag-and-drop, and paste.
+- 支持通过工具栏、拖放和粘贴添加本地图片附件。
 
-- Each shortcut press opens a new independent quick note.
-- The global shortcut is configurable and can be disabled in Settings.
-- Quick notes are borderless cards with no normal title bar buttons.
-- The top strip is draggable and has one centered grip line as a visual hint.
-- The lower-left footer shows the current line and character count.
-- Leaving the title empty uses the first body line as the saved note title.
-- `Ctrl + Enter` saves.
-- `Esc` cancels and asks before discarding non-empty content.
-- Tray settings determine whether minimizing or closing hides the main window while keeping shortcuts active.
+## Tech stack / 技术栈
 
-## Desktop Todo Widget
+WPF · .NET 8 · SQLite · Entity Framework Core · WebView2 · Toast UI Editor · Markdig
 
-QingJian shows a semi-transparent desktop todo widget by default on first launch after the feature is installed.
+## Quick start / 快速开始
 
-- The widget stores todos independently from notes.
-- The main window can show or hide the widget.
-- Subsequent app launches restore the widget's previous visible or hidden state.
-- The widget supports 8-day, today-list, and monthly-calendar presets.
-- A compact icon toolbar cycles modes, toggles lock state, and hides the widget while unlocked.
-- The 8-day preset starts from yesterday and shows 8 consecutive days.
-- The monthly-calendar preset supports previous month, next month, and return to current month.
-- Todos can be added, edited, completed, deleted, and assigned no time, a single time, a same-day range, or an overnight range shorter than 24 hours.
-- Completed todos remain visible and move to the bottom of their day.
-- Widget visibility, mode, position, opacity, lock state, and calendar month are persisted.
-
-## Settings And Tray
-
-- Configure Windows startup, minimize/close-to-tray behavior, and startup-hidden behavior.
-- Configure the default editor mode and global quick-note shortcut.
-- Configure desktop todo visibility, mode, opacity, lock state, and reset behavior.
-- Inspect local storage usage and runtime versions.
-- Use the tray menu to open QingJian, create a quick note, show/hide desktop todo, or exit.
-
-## Markdown Editing
-
-- Note bodies are stored as Markdown text.
-- The editor opens in WYSIWYG mode by default.
-- Markdown source mode remains available inside the editor.
-- Network image Markdown links are supported.
-- Local image attachments are supported through toolbar upload, drag/drop, and paste.
-
-## Project Status
-
-For the current implementation state, branch workflow, known decisions, and new-conversation handoff instructions, see:
-
-```text
-docs/project-status.md
-```
-
-## Runtime Requirements
-
-- Windows with the Microsoft Edge WebView2 Runtime installed.
-- .NET 8 SDK for development.
-
-## Development
+Requirements / 环境要求：Windows、.NET 8 SDK，以及 Microsoft Edge WebView2 Runtime。
 
 ```powershell
 dotnet restore
-dotnet build
-dotnet test
-dotnet run --project src\QingJian.App\QingJian.App.csproj
+dotnet test -c Release --no-restore
+dotnet build -c Release --no-restore
+dotnet run --project src/QingJian.App/QingJian.App.csproj
 ```
 
-## Releases And Installer
+WPF 的测试和构建请依次执行，避免生成文件锁定。
 
-Download the latest Windows installer from the
-[GitHub Releases page](https://github.com/CristinXie/qingjian/releases).
-The installer targets x64 Windows and installs the Microsoft Edge WebView2
-Runtime when it is not already available.
+## Repository layout / 目录结构
 
-To build the installer locally, run:
+```text
+.
+├── src/QingJian.App/       # WPF application / 应用程序
+│   ├── Data/               # SQLite context and repositories / 数据访问
+│   ├── Services/           # Application use cases / 业务服务
+│   ├── ViewModels/         # MVVM state and commands / MVVM 状态
+│   ├── Views/              # Main and auxiliary WPF windows / 界面
+│   ├── QuickNotes/         # Quick-note workflow / 快速笔记
+│   ├── TodoWidgets/        # Desktop todo widget / 桌面待办
+│   ├── Settings/           # Preferences and startup / 设置
+│   ├── Hotkeys/ Tray/      # Global shortcut and tray integration
+│   ├── EditorAssets/       # WebView2 editor host and vendor assets
+│   └── Assets/ Resources/  # App icon and shared WPF resources
+├── tests/QingJian.App.Tests/ # Unit and XAML tests / 单元与界面测试
+├── docs/                   # Status, design notes, and implementation plans
+├── assets/branding/        # Source artwork used by the project
+├── installer/              # Inno Setup definition
+├── scripts/                # Build and packaging scripts
+├── QingJian.sln
+└── Directory.Build.props
+```
+
+`docs/README.md` is the documentation index. `docs/project-status.md` contains the current architecture, deferred work, and handoff notes.
+
+`docs/README.md` 是文档索引；`docs/project-status.md` 记录当前架构、暂缓事项和交接信息。
+
+## Data and releases / 数据与发布
+
+User data is stored under `%LOCALAPPDATA%\QingJian`:
+
+用户数据默认保存在 `%LOCALAPPDATA%\QingJian`：
+
+- `qingjian.db` — notes and todos / 笔记与待办数据库
+- `settings.json` — preferences / 设置
+- `attachments/` — local images / 本地图片
+
+Download the latest Windows installer from [GitHub Releases](https://github.com/CristinXie/qingjian/releases). To build it locally:
 
 ```powershell
 .\scripts\build-installer.ps1
 ```
 
-The script downloads and hash-verifies the pinned Inno Setup compiler and the
-WebView2 Evergreen Bootstrapper, then publishes a self-contained x64 build.
+## Contributing / 参与开发
 
-## Data Location
+Please read [CONTRIBUTING.md](CONTRIBUTING.md), [docs/README.md](docs/README.md), and [docs/project-status.md](docs/project-status.md) before making changes. Start feature work from `develop` in a `feature/*` branch, add tests for behavior changes, and target pull requests at `develop`.
 
-QingJian stores its database in:
+提交修改前请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)、[docs/README.md](docs/README.md) 和 [docs/project-status.md](docs/project-status.md)。功能开发从 `develop` 创建 `feature/*` 分支；行为变更请补充测试，Pull Request 目标分支为 `develop`。
 
-```text
-%LOCALAPPDATA%\QingJian\qingjian.db
-```
+## License / 许可证
 
-Settings and attachments are stored under the same `%LOCALAPPDATA%\QingJian` directory.
-
-## Branch Flow
-
-Feature work starts from `develop`, uses `feature/*` branches, and merges back to `develop` after tests pass.
-
-The application, tray, and WPF windows use the bundled `src\QingJian.App\Assets\qingjian.ico` icon.
+[MIT](LICENSE)

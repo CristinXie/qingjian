@@ -227,7 +227,7 @@ Current layout at this update:
 - Single-instance and installer support was merged into `develop` as `49d59de`.
 - Existing external worktree: `C:\Users\Cristin\Desktop\VibeCoding\qingjian-ui-polish` on the merged `feature/ui-polish` branch. Confirm ownership before removing it.
 - Existing external worktree: `C:\Users\Cristin\Desktop\VibeCoding\qingjian-single-instance-setup` on the merged `feature/single-instance-setup` branch. Confirm ownership before removing it.
-- The application icon source images under `outputs/image2/` are tracked in `f99f792`.
+- The application icon source images under `assets/branding/` are tracked in `f99f792`.
 
 Always check current state rather than relying only on this snapshot:
 
